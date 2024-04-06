@@ -132,6 +132,24 @@ class Trader:
             else:
                 self.ema_prices[product] = self.ema_param * mid_price + (1-self.ema_param) * self.ema_prices[product]
 
+    def calculate_fair_price_starfruit(self, state : TradingState):
+        """
+        Calculate the next price for STARFRUIT as a linea regresson of the previous 7 prices of STARFRUIT
+        having as intercept the variable 'intercept' and as coefficients of the 7 previous prices the
+        coefficients in 'coef'
+        """
+        intercept = -0.3271
+        coef = [0.2835, 0.1671, 0.1918, 0.1179, 0.1085, 0.0677, 0.0636]
+
+        #get the last 7 prices of STARFRUIT
+        prices = self.past_prices[STARFRUIT][-7:]
+
+        #calculate the next price as the linear regression of the previous 7 prices
+        fair_price = intercept + sum([coef[i]*prices[i] for i in range(7)])
+        fair_price = round(fair_price)
+
+        return fair_price
+
 
     def amethyst_strategy(self, state: TradingState):
         """
@@ -155,6 +173,47 @@ class Trader:
         orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 1, ask_volume))
 
         return orders
+    
+
+    def startfruit_strategy(self, state: TradingState): 
+        """
+        Here we define the strategy to trade STARFRUIT. (Trend following stategy) 
+        This method will be called into 'run' to generate BUY or SELL signals for STARFRUIT.
+        Idea: Calculate the 'fair_price' for STARFRUIT with a linear regression over the previous few prices.
+              BUY if BEST ASK < fair_price (Buy all the available volume)
+              SELL if BEST BID > fair_price (Sell all the possible volume)
+        """
+
+        position_starfruit = self.get_position(STARFRUIT, state) #get the position we currently have in STARFRUIT
+        
+        bid_volume = self.position_limit[STARFRUIT] - position_starfruit #find the bid volume as the position limit (20) - the current position we have in STARFRUIT 
+        ask_volume = - self.position_limit[STARFRUIT] - position_starfruit # NOTE: This is a negative value bc enters into the SELL orders
+
+        #get the fair price for STARFRUIT from calculate_fair_price_starfruit
+        fair_price = self.calculate_fair_price_starfruit(state)
+
+        orders = [] #initialize an empty list containing the BUY and SELL orders
+
+        #retrieve the buy and sell orders for STARFRUIT from state.order_depths
+        market_bids = state.order_depths[STARFRUIT].buy_orders #get the BUY orders
+        market_asks = state.order_depths[STARFRUIT].sell_orders #get the SELL orders
+
+        #market_bids and market_asks are dictionaries in the shape {9: 5, 10: 4} where the key is the price and the value is the volume
+        
+        #if there are no bids or asks do not place any order
+        if len(market_bids) == 0 and len(market_asks) == 0:
+            return orders
+
+        #if the best ASK is < fair_price, place a BUY order at the best ask price
+        if len(market_asks) > 0 and min(market_asks) < fair_price:
+            orders.append(Order(STARFRUIT, min(market_asks), bid_volume))
+
+        #if the best BID is > fair_price, place a SELL order at the best bid price
+        if len(market_bids) > 0 and max(market_bids) > fair_price:
+            orders.append(Order(STARFRUIT, max(market_bids), ask_volume))
+        
+        return orders
+
 
 
     def run(self, state: TradingState):
@@ -165,6 +224,20 @@ class Trader:
         print("traderData: " + state.traderData)
         print("Observations: " + str(state.observations))
         
+        self.round += 1
+        pnl = self.update_pnl(state)
+        #self.update_ema_prices(state)
+
+        print(f"Log round {self.round}")
+
+        print("TRADES:")
+        for product in state.own_trades:
+            for trade in state.own_trades[product]:
+                if trade.timestamp == state.timestamp - 100:
+                    print(trade)
+
+
+        """
         result = {}
         
         for product in state.order_depths:
@@ -193,3 +266,26 @@ class Trader:
         
         conversions = 1
         return result, conversions, traderData
+
+        """
+
+        # Initialize the method output dict as an empty dict
+        result = {}
+
+        # AMETHYSTS STRATEGY
+        try:
+            result[AMETHYSTS] = self.amethyst_strategy(state)
+        except Exception as e:
+            print("Error in amethysts strategy")
+            print(e)
+
+        # STARFRUIT STRATEGY
+        try:
+            result[STARFRUIT] = self.starfruit_strategy(state)
+        except Exception as e:
+            print("Error in starfruit strategy")
+            print(e)
+
+        print("+---------------------------------+")
+
+        return result

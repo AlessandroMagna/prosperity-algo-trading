@@ -175,7 +175,7 @@ class Trader:
         return orders
     
 
-    def startfruit_strategy(self, state: TradingState): 
+    def starfruit_strategy(self, state: TradingState): 
         """
         Here we define the strategy to trade STARFRUIT. (Trend following stategy) 
         This method will be called into 'run' to generate BUY or SELL signals for STARFRUIT.
@@ -206,11 +206,11 @@ class Trader:
 
         #if the best ASK is < fair_price, place a BUY order at the best ask price
         if len(market_asks) > 0 and min(market_asks) < fair_price:
-            orders.append(Order(STARFRUIT, min(market_asks), bid_volume))
+            orders.append(Order(STARFRUIT, min(market_asks.keys()), bid_volume))
 
         #if the best BID is > fair_price, place a SELL order at the best bid price
         if len(market_bids) > 0 and max(market_bids) > fair_price:
-            orders.append(Order(STARFRUIT, max(market_bids), ask_volume))
+            orders.append(Order(STARFRUIT, max(market_bids.keys()), ask_volume))
         
         return orders
 
@@ -224,18 +224,17 @@ class Trader:
         print("traderData: " + state.traderData)
         print("Observations: " + str(state.observations))
         
-        self.round += 1
-        pnl = self.update_pnl(state)
+        #self.round += 1
+        #pnl = self.update_pnl(state)
         #self.update_ema_prices(state)
 
-        print(f"Log round {self.round}")
+        #print(f"Log round {self.round}")
 
         print("TRADES:")
         for product in state.own_trades:
             for trade in state.own_trades[product]:
                 if trade.timestamp == state.timestamp - 100:
                     print(trade)
-
 
         """
         result = {}
@@ -268,7 +267,8 @@ class Trader:
         return result, conversions, traderData
 
         """
-
+        
+        
         # Initialize the method output dict as an empty dict
         result = {}
 
@@ -288,4 +288,7 @@ class Trader:
 
         print("+---------------------------------+")
 
-        return result
+        traderData = "SAMPLE" # String value holding Trader state data required. It will be delivered as TradingState.traderData on next execution.
+        
+        conversions = 1
+        return result, conversions, traderData

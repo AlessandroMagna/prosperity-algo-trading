@@ -43,12 +43,18 @@ class Trader:
         for product in PRODUCTS:
             self.past_prices[product] = []
 
-        #initialize the a list containing, for each product, the exponential moving average of the prices
+        #initialize the a list containing, for each product, the fair price calculated as a linear regression of the past prices
+        self.fair_price = dict()
+        for product in PRODUCTS:
+            self.fair_price[product] = [] #TODO TODO TODO: change this to None
+
+        
+        #initialize the a list containing, for each product, the ema prices
         self.ema_prices = dict()
         for product in PRODUCTS:
             self.ema_prices[product] = None
-        
-        #initialize the decay parameter for the EMA
+
+        #initialize the ema parameter
         self.ema_param = 0.5
         
 
@@ -85,6 +91,7 @@ class Trader:
         #the average between the best bid and the best ask
         best_bid = max(market_bids)
         best_ask = max(market_asks)
+
         return (best_bid + best_ask)/2
     
     def get_value_on_product(self, product, state : TradingState):
@@ -132,24 +139,25 @@ class Trader:
             else:
                 self.ema_prices[product] = self.ema_param * mid_price + (1-self.ema_param) * self.ema_prices[product]
 
-    def calculate_fair_price_starfruit(self, state : TradingState):
+    def update_fair_price(self, state : TradingState):
         """
-        Calculate the next price for STARFRUIT as a linea regresson of the previous 7 prices of STARFRUIT
-        having as intercept the variable 'intercept' and as coefficients of the 7 previous prices the
-        coefficients in 'coef'
+        Update the fair price of each product, calculated by the linear regression on the past 6 prices
         """
-        intercept = -0.3271
-        coef = [0.2835, 0.1671, 0.1918, 0.1179, 0.1085, 0.0677, 0.0636]
-
-        #get the last 7 prices of STARFRUIT
-        prices = self.past_prices[STARFRUIT][-7:]
-
-        #calculate the next price as the linear regression of the previous 7 prices
-        fair_price = intercept + sum([coef[i]*prices[i] for i in range(7)])
-        fair_price = round(fair_price)
-
-        return fair_price
-
+        for product in PRODUCTS:
+            mid_price = self.get_mid_price(product, state)
+            if mid_price is None:
+                continue
+            
+            #update fair_price
+            if self.fair_prices[product] is None:
+                self.fair_prices[product] = mid_price
+            else:
+                intercept = 14.333341
+                coef = [0.310888, 0.224272, 0.147905, 0.126696, 0.090512, 0.096894]
+                lagged_prices = self.past_prices[product][-6:]
+                fair_price = intercept + sum([coef[i]*lagged_prices[i] for i in range(6)])
+                self.fair_price[product] = round(fair_price)
+                
 
     def amethyst_strategy(self, state: TradingState):
         """
@@ -169,8 +177,12 @@ class Trader:
                     #To create a SELL order append : (PRODUCT, MINIMUM SELL PRICE, - QUANTITY)
         
         #The way my AMETHYSTS strategy works is by doing Market Making -> I place a BUY order at DEFAULT_PRICE - 1 abd a SELL order at DEFAULT_PRICE + 1
-        orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - 1, bid_volume))
-        orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 1, ask_volume))
+        
+        #orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - 1, bid_volume))
+        #orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 1, ask_volume))
+        
+        orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - 2, bid_volume))
+        orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 2, ask_volume))
 
         return orders
     
@@ -189,17 +201,16 @@ class Trader:
         bid_volume = self.position_limit[STARFRUIT] - position_starfruit #find the bid volume as the position limit (20) - the current position we have in STARFRUIT 
         ask_volume = - self.position_limit[STARFRUIT] - position_starfruit # NOTE: This is a negative value bc enters into the SELL orders
 
-        #get the fair price for STARFRUIT from calculate_fair_price_starfruit
-        fair_price = self.calculate_fair_price_starfruit(state)
-
         orders = [] #initialize an empty list containing the BUY and SELL orders
 
+
         #retrieve the buy and sell orders for STARFRUIT from state.order_depths
-        market_bids = state.order_depths[STARFRUIT].buy_orders #get the BUY orders
-        market_asks = state.order_depths[STARFRUIT].sell_orders #get the SELL orders
+        #market_bids = state.order_depths[STARFRUIT].buy_orders #get the BUY orders
+        #market_asks = state.order_depths[STARFRUIT].sell_orders #get the SELL orders
 
         #market_bids and market_asks are dictionaries in the shape {9: 5, 10: 4} where the key is the price and the value is the volume
         
+        """
         #if there are no bids or asks do not place any order
         if len(market_bids) == 0 and len(market_asks) == 0:
             return orders
@@ -211,9 +222,26 @@ class Trader:
         #if the best BID is > fair_price, place a SELL order at the best bid price
         if len(market_bids) > 0 and max(market_bids) > fair_price:
             orders.append(Order(STARFRUIT, max(market_bids.keys()), ask_volume))
-        
-        return orders
 
+        return orders
+        """
+
+        if position_starfruit == 0:
+            # Not long nor short
+            orders.append(Order(STARFRUIT, math.floor(self.ema_prices[STARFRUIT] - 1), bid_volume))
+            orders.append(Order(STARFRUIT, math.ceil(self.ema_prices[STARFRUIT] + 1), ask_volume))
+        
+        if position_starfruit > 0:
+            # Long position
+            orders.append(Order(STARFRUIT, math.floor(self.ema_prices[STARFRUIT] - 2), bid_volume))
+            orders.append(Order(STARFRUIT, math.ceil(self.ema_prices[STARFRUIT]), ask_volume))
+
+        if position_starfruit < 0:
+            # Short position
+            orders.append(Order(STARFRUIT, math.floor(self.ema_prices[STARFRUIT]), bid_volume))
+            orders.append(Order(STARFRUIT, math.ceil(self.ema_prices[STARFRUIT] + 2), ask_volume))
+
+        return orders
 
 
     def run(self, state: TradingState):
@@ -221,8 +249,8 @@ class Trader:
         Only method required. It takes all buy and sell orders for all symbols as an input, and outputs a list of orders to be sent
         """
         
-        print("traderData: " + state.traderData)
-        print("Observations: " + str(state.observations))
+        #print("traderData: " + state.traderData)
+        #print("Observations: " + str(state.observations))
         
         #self.round += 1
         #pnl = self.update_pnl(state)
@@ -230,11 +258,13 @@ class Trader:
 
         #print(f"Log round {self.round}")
 
+        """
         print("TRADES:")
         for product in state.own_trades:
             for trade in state.own_trades[product]:
                 if trade.timestamp == state.timestamp - 100:
                     print(trade)
+        """
 
         """
         result = {}
@@ -267,8 +297,12 @@ class Trader:
         return result, conversions, traderData
 
         """
+
+        self.round += 1
+        self.update_ema_price(state)
+        #self.update_fair_price(state)
         
-        
+
         # Initialize the method output dict as an empty dict
         result = {}
 
@@ -280,6 +314,7 @@ class Trader:
             print(e)
 
         # STARFRUIT STRATEGY
+        # TODO: Error in starfruit strategy. list index out of range
         try:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:

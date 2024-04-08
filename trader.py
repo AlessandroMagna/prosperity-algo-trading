@@ -42,13 +42,7 @@ class Trader:
         self.past_prices = dict()
         for product in PRODUCTS:
             self.past_prices[product] = []
-
-        #initialize the a list containing, for each product, the fair price calculated as a linear regression of the past prices
-        self.fair_price = dict()
-        for product in PRODUCTS:
-            self.fair_price[product] = [] #TODO TODO TODO: change this to None
-
-        
+       
         #initialize the a list containing, for each product, the ema prices
         self.ema_prices = dict()
         for product in PRODUCTS:
@@ -137,27 +131,7 @@ class Trader:
             if self.ema_prices[product] is None:
                 self.ema_prices[product] = mid_price
             else:
-                self.ema_prices[product] = self.ema_param * mid_price + (1-self.ema_param) * self.ema_prices[product]
-
-    def update_fair_price(self, state : TradingState):
-        """
-        Update the fair price of each product, calculated by the linear regression on the past 6 prices
-        """
-        for product in PRODUCTS:
-            mid_price = self.get_mid_price(product, state)
-            if mid_price is None:
-                continue
-            
-            #update fair_price
-            if self.fair_prices[product] is None:
-                self.fair_prices[product] = mid_price
-            else:
-                intercept = 14.333341
-                coef = [0.310888, 0.224272, 0.147905, 0.126696, 0.090512, 0.096894]
-                lagged_prices = self.past_prices[product][-6:]
-                fair_price = intercept + sum([coef[i]*lagged_prices[i] for i in range(6)])
-                self.fair_price[product] = round(fair_price)
-                
+                self.ema_prices[product] = self.ema_param * mid_price + (1-self.ema_param) * self.ema_prices[product]       
 
     def amethyst_strategy(self, state: TradingState):
         """
@@ -203,29 +177,6 @@ class Trader:
 
         orders = [] #initialize an empty list containing the BUY and SELL orders
 
-
-        #retrieve the buy and sell orders for STARFRUIT from state.order_depths
-        #market_bids = state.order_depths[STARFRUIT].buy_orders #get the BUY orders
-        #market_asks = state.order_depths[STARFRUIT].sell_orders #get the SELL orders
-
-        #market_bids and market_asks are dictionaries in the shape {9: 5, 10: 4} where the key is the price and the value is the volume
-        
-        """
-        #if there are no bids or asks do not place any order
-        if len(market_bids) == 0 and len(market_asks) == 0:
-            return orders
-
-        #if the best ASK is < fair_price, place a BUY order at the best ask price
-        if len(market_asks) > 0 and min(market_asks) < fair_price:
-            orders.append(Order(STARFRUIT, min(market_asks.keys()), bid_volume))
-
-        #if the best BID is > fair_price, place a SELL order at the best bid price
-        if len(market_bids) > 0 and max(market_bids) > fair_price:
-            orders.append(Order(STARFRUIT, max(market_bids.keys()), ask_volume))
-
-        return orders
-        """
-
         if position_starfruit == 0:
             # Not long nor short
             orders.append(Order(STARFRUIT, math.floor(self.ema_prices[STARFRUIT] - 1), bid_volume))
@@ -249,8 +200,10 @@ class Trader:
         Only method required. It takes all buy and sell orders for all symbols as an input, and outputs a list of orders to be sent
         """
         
-        #print("traderData: " + state.traderData)
-        #print("Observations: " + str(state.observations))
+        print("traderData: " + state.traderData)
+        print("Observations: " + str(state.observations))
+        print("Timestamp: " + str(state.timestamp))
+        print("OrderDepth: " + str(state.order_depths))
         
         #self.round += 1
         #pnl = self.update_pnl(state)

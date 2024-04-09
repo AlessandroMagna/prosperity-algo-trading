@@ -94,6 +94,25 @@ class Trader:
         """
         return self.get_position(product, state) * self.get_mid_price(product, state)
     
+    def get_best_bid_ask(self, product, state : TradingState):
+        """
+        Given a product and a state, it returns the best bid and the best ask
+        """
+        if product not in state.order_depths:
+            return None, None
+        
+        market_bids = state.order_depths[product].buy_orders
+        market_asks = state.order_depths[product].sell_orders
+        
+        if len(market_bids) == 0 or len(market_asks) == 0:
+            return None, None
+        
+        best_bid = max(market_bids)
+        best_ask = min(market_asks)
+        
+        return best_bid, best_ask
+        
+    
     def update_pnl(self, state : TradingState):
         """
         Update PnL
@@ -203,7 +222,8 @@ class Trader:
         print("traderData: " + state.traderData)
         print("Observations: " + str(state.observations))
         print("Timestamp: " + str(state.timestamp))
-        print("OrderDepth: " + str(state.order_depths))
+
+        
         
         #self.round += 1
         #pnl = self.update_pnl(state)
@@ -260,6 +280,9 @@ class Trader:
         result = {}
 
         # AMETHYSTS STRATEGY
+        amethysts_best_bid, amethysts_best_ask = self.get_best_bid_ask(AMETHYSTS, state)
+        print("AMETHYSTS Best Bid: " + str(amethysts_best_bid))
+        print("AMETHYSTS Best Ask: " + str(amethysts_best_ask)) 
         try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
@@ -267,7 +290,9 @@ class Trader:
             print(e)
 
         # STARFRUIT STRATEGY
-        # TODO: Error in starfruit strategy. list index out of range
+        starfruit_best_bid, starfruit_best_ask = self.get_best_bid_ask(STARFRUIT, state)
+        print("STARFRUIT Best Bid: " + str(starfruit_best_bid))
+        print("STARFRUIT Best Ask: " + str(starfruit_best_ask)) 
         try:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:

@@ -142,17 +142,34 @@ class Trader:
     def get_position(self, product, state: TradingState):
         return state.position.get(product, 0)
     
-    def get_mid_price(self, product, state: TradingState):
-        default_price = self.ema_prices[product] if self.ema_prices[product] is not None else DEFAULT_PRICES[product]
+    def get_mid_price(self, product, state : TradingState):
+        """
+        Given a product and a state objects, it returns the mid_price.
+        The mid_price consists of the price in between the best bid and the best ask.
+        If there are no bids or asks, it returns the DEFAULT_PRICE consisting of the exponential moving average (EMA) of all the previous prices.
+        """
+
+        default_price = self.ema_prices[product]
+        if default_price is None:
+            default_price = DEFAULT_PRICES[product] #at the beginning of the series, just set the default price to DEFAULT_PRICE
+
         if product not in state.order_depths:
             return default_price
-        market_bids = state.order_depths[product].buy_orders
+        
+        market_bids = state.order_depths[product].buy_orders #save here all the BIDS present in the market for a product at a certain state in time
+        if len(market_bids) == 0:
+            return default_price #if there are no BID orders, set the mid_price to be the EMA of the previous prices
+        
         market_asks = state.order_depths[product].sell_orders
-        if len(market_bids) == 0 or len(market_asks) == 0:
-            return default_price
+        if len(market_asks) == 0:
+            return default_price #if there are no ASK orders, set the mid_price to be the EMA of the previous prices
+        
+        #in all the other cased, the mid_price of a product at a given state in time is defined as
+        #the average between the best bid and the best ask
         best_bid = max(market_bids)
-        best_ask = min(market_asks)
-        return (best_bid + best_ask) / 2
+        best_ask = max(market_asks)
+
+        return (best_bid + best_ask)/2
     
     def get_value_on_product(self, product, state: TradingState):
         return self.get_position(product, state) * self.get_mid_price(product, state)
@@ -213,7 +230,9 @@ class Trader:
         return orders
     
     def starfruit_strategy(self, state: TradingState):
+
         self.logger.print("Executing Starfruit strategy")
+
         position_starfruit = self.get_position(STARFRUIT, state) #get the position we currently have in STARFRUIT
         
         bid_volume = self.position_limit[STARFRUIT] - position_starfruit #find the bid volume as the position limit (20) - the current position we have in STARFRUIT 
@@ -258,8 +277,8 @@ class Trader:
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
         
-        conversions = 0  # Update according to your strategy
-        trader_data = "Your custom trader data here"
+        conversions = 1  # Update according to your strategy
+        trader_data = "SAMPLE"
         
         # Flush logs to output
         self.logger.flush(state, result, conversions, trader_data)

@@ -165,6 +165,8 @@ class Trader:
         bid_volume = self.position_limit[AMETHYSTS] - position_amethysts #find the bid volume as the position limit (20) - the current position we have in AMETHYSTS 
         ask_volume = - self.position_limit[AMETHYSTS] - position_amethysts # NOTE: This is a negative value bc enters into the SELL orders
 
+        best_bid, best_ask = self.get_best_bid_ask(AMETHYSTS, state) #get the best bid and ask currently in hte orderbook
+
         orders = [] #initialize an empty list containing the BUY and SELL orders
                     #To create a BUY order append : (PRODUCT, MAXIMUM BUY PRICE, + QUANTITY)
                     #To create a SELL order append : (PRODUCT, MINIMUM SELL PRICE, - QUANTITY)
@@ -174,8 +176,25 @@ class Trader:
         #orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - 1, bid_volume))
         #orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 1, ask_volume))
         
-        orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - 2, bid_volume))
-        orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 2, ask_volume))
+        #orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - 2, bid_volume))
+        #orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + 2, ask_volume))
+
+        #new strategy
+        if best_bid > DEFAULT_PRICES[AMETHYSTS] & best_ask > DEFAULT_PRICES[AMETHYSTS]:
+            orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS], bid_volume)) #buy at 10K
+            orders.append(Order(AMETHYSTS, best_bid, ask_volume)) #sell at best_bid
+
+        if best_bid < DEFAULT_PRICES[AMETHYSTS] & best_ask < DEFAULT_PRICES[AMETHYSTS]:
+            orders.append(Order(AMETHYSTS, best_ask, bid_volume)) #buy at best_ask
+            orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS], ask_volume)) #sell at 10K
+
+        else: # make the market at with the largest spread between our buy and sell orders
+            bid_diff = abs(best_bid - DEFAULT_PRICES[AMETHYSTS])
+            ask_diff = abs(DEFAULT_PRICES[AMETHYSTS] - best_ask)
+            min_diff = min(bid_diff, ask_diff)
+
+            orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - min_diff + 1, bid_volume)) #buy
+            orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + min_diff - 1, ask_volume)) #sell
 
         return orders
     

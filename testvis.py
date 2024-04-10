@@ -211,11 +211,11 @@ class Trader:
                     #To create a SELL order append : (PRODUCT, MINIMUM SELL PRICE, - QUANTITY)
         
         #new strategy
-        if best_bid > DEFAULT_PRICES[AMETHYSTS] & best_ask > DEFAULT_PRICES[AMETHYSTS]:
+        if best_bid > DEFAULT_PRICES[AMETHYSTS] and best_ask > DEFAULT_PRICES[AMETHYSTS]:
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS], bid_volume)) #buy at 10K
             orders.append(Order(AMETHYSTS, best_bid, ask_volume)) #sell at best_bid
 
-        if best_bid < DEFAULT_PRICES[AMETHYSTS] & best_ask < DEFAULT_PRICES[AMETHYSTS]:
+        elif best_bid < DEFAULT_PRICES[AMETHYSTS] and best_ask < DEFAULT_PRICES[AMETHYSTS]:
             orders.append(Order(AMETHYSTS, best_ask, bid_volume)) #buy at best_ask
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS], ask_volume)) #sell at 10K
 
@@ -226,7 +226,7 @@ class Trader:
 
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - min_diff + 1, bid_volume)) #buy
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + min_diff - 1, ask_volume)) #sell
-
+            
         return orders
     
     def starfruit_strategy(self, state: TradingState):

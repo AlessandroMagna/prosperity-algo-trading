@@ -1,25 +1,22 @@
 import json
 #from datamodel import OrderDepth, UserId, TradingState, Order
-from datamodel import Listing, Observation, Order, OrderDepth, ProsperityEncoder, Symbol, Trade, TradingState, ConversionObservation
+from datamodel import Listing, Observation, Order, OrderDepth, ProsperityEncoder, Symbol, Trade, TradingState
 
 from typing import List
 from typing import Any
 import string
 import math
-import numpy as np
 #from logger import logger  # Assuming Logger is properly defined and imported
 
 AMETHYSTS = 'AMETHYSTS'
 STARFRUIT = 'STARFRUIT'
-ORCHIDS='ORCHIDS'
 SUBMISSION = 'SUBMISSION'  # Used for identifying trades involving this submission
 
-PRODUCTS = [AMETHYSTS, STARFRUIT, ORCHIDS]
+PRODUCTS = [AMETHYSTS, STARFRUIT]
 
 DEFAULT_PRICES = {
     AMETHYSTS: 10_000,
     STARFRUIT: 5_000,
-    ORCHIDS: 1100
 }
 
 
@@ -136,8 +133,6 @@ class Trader:
             AMETHYSTS: 20,
             STARFRUIT: 20,
         }
-        self.theta=[ 9.75847835e+02,  6.40234807e+00, -5.56178238e+01,  3.32094478e+01,
-        1.50129995e-02,  1.75328159e+00]
         self.round = 0
         self.cash = 0
         self.past_prices = {product: [] for product in PRODUCTS}
@@ -234,7 +229,6 @@ class Trader:
             
         return orders
     
-    
     def starfruit_strategy(self, state: TradingState):
 
         self.logger.print("Executing Starfruit strategy")
@@ -262,98 +256,6 @@ class Trader:
             orders.append(Order(STARFRUIT, math.ceil(self.ema_prices[STARFRUIT] + 2), ask_volume))
 
         return orders
-
-
-    '''
-
-    def orchid_strategy(self, state: TradingState):
-        self.logger.print("Executing ORCHID strategy")
-            #conversion_obs = state.ConversionObservation
-        conversion_obs = state.observations.conversionObservations['ORCHIDS']
-
-
-        
-        X = np.array([
-            1, 
-            conversion_obs.exportTariff,
-            conversion_obs.transportFees,
-            conversion_obs.importTariff,
-            conversion_obs.sunlight,
-            conversion_obs.humidity])
-            
-            # Predict next price
-        predicted_price = np.dot(X, self.theta)
-
-            # Current market price
-        current_price = self.get_mid_price(ORCHIDS, state)
-
-            # Get current position and calculate order volumes
-        position_orchids = self.get_position(ORCHIDS, state)
-        bid_volume = self.position_limit[ORCHIDS] - position_orchids
-        ask_volume = -self.position_limit[ORCHIDS] - position_orchids
-
-        orders = []
-            
-        if current_price < predicted_price and bid_volume > 0:
-        
-            orders.append(Order(ORCHIDS, current_price, bid_volume))
-        elif current_price > predicted_price and position_orchids > 0:
-            orders.append(Order(ORCHIDS, current_price, ask_volume))
-
-        return orders
-        '''
-            
-    def orchid_strategy(self, state: TradingState):
-        try:
-            self.logger.print("Starting ORCHID strategy execution.")
-            # Check if ORCHIDS is correctly set and accessible
-            self.logger.print(f"Using ORCHIDS identifier: {ORCHIDS}")
-            
-            # Access the conversion observations for 'ORCHIDS'
-            if ORCHIDS in state.observations.conversionObservations:
-                conversion_obs = state.observations.conversionObservations[ORCHIDS]
-            else:
-                raise ValueError("ORCHIDS data not found in conversion observations")
-
-            # Prepare the feature array for prediction
-            X = np.array([
-                1,  # Intercept term for linear regression
-                conversion_obs.exportTariff,
-                conversion_obs.transportFees,
-                conversion_obs.importTariff,
-                conversion_obs.sunlight,
-                conversion_obs.humidity
-            ])
-
-            # Predict the next price
-            predicted_price = np.dot(X, self.theta)
-
-            # Obtain the current market price
-            current_price = self.get_mid_price(ORCHIDS, state)
-            position_orchids = self.get_position(ORCHIDS, state)
-            bid_volume = self.position_limit[ORCHIDS] - position_orchids
-            ask_volume = -self.position_limit[ORCHIDS] - position_orchids
-
-            orders = []
-            if current_price < predicted_price and bid_volume > 0:
-                orders.append(Order(ORCHIDS, current_price, bid_volume))
-            elif current_price > predicted_price and position_orchids > 0:
-                orders.append(Order(ORCHIDS, current_price, ask_volume))
-
-            self.logger.print("ORCHID strategy executed successfully.")
-            return orders
-
-        except Exception as e:
-            self.logger.print(f"Error in ORCHID strategy: {e}")
-            raise  # Re-raise the exception after logging for further analysis
-
-
-
-
-        
-
-
-
     
     def run(self, state: TradingState):
         self.round += 1
@@ -364,9 +266,7 @@ class Trader:
         result = {}
         
         # Implementing AMETHYSTS Strategy
-
-        """ 
-          try:
+        try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in AMETHYSTS strategy: {e}")
@@ -376,16 +276,8 @@ class Trader:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
-        """
-        try:
-            result[ORCHIDS] = self.orchid_strategy(state)
-        except Exception as e:
-            self.logger.print(f"Error in ORCHID strategy: {e}")
         
-
-
-
-        conversions = 1  
+        conversions = 1  # Update according to your strategy
         trader_data = "SAMPLE"
         
         # Flush logs to output

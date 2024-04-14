@@ -303,16 +303,13 @@ class Trader:
             elif sunlight_deriv < 0 and humidity_deriv < 0:
                 orders.append(Order(ORCHIDS, best_bid, ask_volume))
 
-            '''
+            
             # If sunlight and humidity changes have different signs
             elif sunlight_deriv * humidity_deriv < 0:
-                #bid_diff = abs(best_bid - mid_price)
-                #ask_diff = abs(mid_price - best_ask)
-                #min_diff = min(bid_diff, ask_diff)
-
-                orders.append(Order(ORCHIDS, best_bid + 1, 10))
-                orders.append(Order(ORCHIDS, best_ask - 1, -10))
-            '''
+        
+                orders.append(Order(ORCHIDS, best_bid + 1, bid_volume))
+                orders.append(Order(ORCHIDS, best_ask - 1, max(ask_volume,-100)))
+            
 
         # If conditions are relatively stable or there's insufficient data
         if len(sunlight) < 10 or len(humidity) < 10 or sunlight_deriv is None or humidity_deriv is None:
@@ -421,10 +418,10 @@ class Trader:
         
         result = {}
         
-        # Implementing AMETHYSTS Strategy
+            # Implementing AMETHYSTS Strategy
 
-        """ 
-          try:
+      
+        try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in AMETHYSTS strategy: {e}")
@@ -434,7 +431,7 @@ class Trader:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
-        """
+     
         try:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
@@ -443,7 +440,7 @@ class Trader:
 
 
 
-        conversions = 1  
+        conversions = 0 
         trader_data = "SAMPLE"
         
         # Flush logs to output

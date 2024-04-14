@@ -277,6 +277,8 @@ class Trader:
         bid_volume = self.position_limit[ORCHIDS] - position_orchids
         ask_volume = -self.position_limit[ORCHIDS] - position_orchids
 
+
+
         best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
 
         mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
@@ -295,12 +297,13 @@ class Trader:
         # If both sunlight and humidity are increasing significantly
         if sunlight_deriv is not None and humidity_deriv is not None:
             if sunlight_deriv > 0 and humidity_deriv > 0:
-                orders.append(Order(ORCHIDS, best_bid + 1, bid_volume))
+                orders.append(Order(ORCHIDS, best_ask, bid_volume)) 
 
             # If both sunlight and humidity are decreasing significantly
             elif sunlight_deriv < 0 and humidity_deriv < 0:
-                orders.append(Order(ORCHIDS, best_ask - 1, ask_volume))
+                orders.append(Order(ORCHIDS, best_bid, ask_volume))
 
+            '''
             # If sunlight and humidity changes have different signs
             elif sunlight_deriv * humidity_deriv < 0:
                 #bid_diff = abs(best_bid - mid_price)
@@ -309,6 +312,7 @@ class Trader:
 
                 orders.append(Order(ORCHIDS, best_bid + 1, 10))
                 orders.append(Order(ORCHIDS, best_ask - 1, -10))
+            '''
 
         # If conditions are relatively stable or there's insufficient data
         if len(sunlight) < 10 or len(humidity) < 10 or sunlight_deriv is None or humidity_deriv is None:

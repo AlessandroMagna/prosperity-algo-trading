@@ -277,11 +277,7 @@ class Trader:
         bid_volume = self.position_limit[ORCHIDS] - position_orchids
         ask_volume = -self.position_limit[ORCHIDS] - position_orchids
 
-
-
         best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
-
-        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
 
         sunlight_deriv = None
         humidity_deriv = None
@@ -294,21 +290,20 @@ class Trader:
 
         orders = []
 
-        # If both sunlight and humidity are increasing significantly
+        # If both sunlight and humidity are increasing 
         if sunlight_deriv is not None and humidity_deriv is not None:
             if sunlight_deriv > 0 and humidity_deriv > 0:
-                orders.append(Order(ORCHIDS, best_ask, bid_volume)) 
+                orders.append(Order(ORCHIDS, best_ask, bid_volume))
 
-            # If both sunlight and humidity are decreasing significantly
+            # If both sunlight and humidity are decreasing 
             elif sunlight_deriv < 0 and humidity_deriv < 0:
                 orders.append(Order(ORCHIDS, best_bid, ask_volume))
-
             
             # If sunlight and humidity changes have different signs
             elif sunlight_deriv * humidity_deriv < 0:
         
-                orders.append(Order(ORCHIDS, best_bid + 1, bid_volume))
-                orders.append(Order(ORCHIDS, best_ask - 1, max(ask_volume,-100)))
+                orders.append(Order(ORCHIDS, best_bid + 1, 25))
+                orders.append(Order(ORCHIDS, best_ask - 1, - 25))
             
 
         # If conditions are relatively stable or there's insufficient data
@@ -316,93 +311,6 @@ class Trader:
             pass
 
         return orders
-   
-
-    '''
-    def orchids_strategy(self, state: TradingState):
-        self.logger.print("Executing ORCHID strategy")
-            #conversion_obs = state.ConversionObservation
-        conversion_obs = state.observations.conversionObservations['ORCHIDS']
-
-
-        
-        X = np.array([
-            1, 
-            conversion_obs.exportTariff,
-            conversion_obs.transportFees,
-            conversion_obs.importTariff,
-            conversion_obs.sunlight,
-            conversion_obs.humidity])
-            
-            # Predict next price
-        predicted_price = np.dot(X, self.theta)
-
-            # Current market price
-        current_price = self.get_mid_price(ORCHIDS, state)
-
-            # Get current position and calculate order volumes
-        position_orchids = self.get_position(ORCHIDS, state)
-        bid_volume = self.position_limit[ORCHIDS] - position_orchids
-        ask_volume = -self.position_limit[ORCHIDS] - position_orchids
-
-        orders = []
-            
-        if current_price < predicted_price and bid_volume > 0:
-        
-            orders.append(Order(ORCHIDS, current_price, bid_volume))
-        elif current_price > predicted_price and position_orchids > 0:
-            orders.append(Order(ORCHIDS, current_price, ask_volume))
-
-        return orders
-        '''
-
-    '''        
-    def orchids_strategy(self, state: TradingState):
-        try:
-            self.logger.print("Starting ORCHID strategy execution.")
-            # Check if ORCHIDS is correctly set and accessible
-            self.logger.print(f"Using ORCHIDS identifier: {ORCHIDS}")
-            
-            # Access the conversion observations for 'ORCHIDS'
-            if ORCHIDS in state.observations.conversionObservations:
-                conversion_obs = state.observations.conversionObservations[ORCHIDS]
-                self.logger.print(f"Conversion Observations: {conversion_obs}")
-            else:
-                raise ValueError("ORCHIDS data not found in conversion observations")
-
-            # Prepare the feature array for prediction
-            X = np.array([
-                1,  # Intercept term for linear regression
-                conversion_obs.exportTariff,
-                conversion_obs.transportFees,
-                conversion_obs.importTariff,
-                conversion_obs.sunlight,
-                conversion_obs.humidity
-            ])
-
-            # Predict the next price
-            predicted_price = np.dot(X, self.theta)
-
-            # Obtain the current market price
-            current_price = self.get_mid_price(ORCHIDS, state)
-            position_orchids = self.get_position(ORCHIDS, state)
-            bid_volume = self.position_limit[ORCHIDS] - position_orchids
-            ask_volume = -self.position_limit[ORCHIDS] - position_orchids
-
-            orders = []
-            if current_price < predicted_price and bid_volume > 0:
-                orders.append(Order(ORCHIDS, int(round(current_price)), bid_volume))
-            elif current_price > predicted_price and position_orchids > 0:
-                orders.append(Order(ORCHIDS, int(round(current_price)), ask_volume))
-
-            self.logger.print("ORCHID strategy executed successfully.")
-            return orders
-
-        except Exception as e:
-            self.logger.print(f"Error in ORCHID strategy: {e}")
-            raise  # Re-raise the exception after logging for further analysis
-        '''
-    
     
 
 
@@ -436,9 +344,6 @@ class Trader:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
-        
-
-
 
         conversions = 0 
         trader_data = "SAMPLE"

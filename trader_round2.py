@@ -11,7 +11,7 @@ import numpy as np
 
 AMETHYSTS = 'AMETHYSTS'
 STARFRUIT = 'STARFRUIT'
-ORCHIDS='ORCHIDS'
+ORCHIDS= 'ORCHIDS'
 SUBMISSION = 'SUBMISSION'  # Used for identifying trades involving this submission
 
 PRODUCTS = [AMETHYSTS, STARFRUIT, ORCHIDS]
@@ -19,7 +19,7 @@ PRODUCTS = [AMETHYSTS, STARFRUIT, ORCHIDS]
 DEFAULT_PRICES = {
     AMETHYSTS: 10_000,
     STARFRUIT: 5_000,
-    ORCHIDS: 1100
+    ORCHIDS: 1_100
 }
 
 
@@ -135,15 +135,19 @@ class Trader:
         self.position_limit = {
             AMETHYSTS: 20,
             STARFRUIT: 20,
+            ORCHIDS: 100
         }
-        self.theta=[ 9.75847835e+02,  6.40234807e+00, -5.56178238e+01,  3.32094478e+01,
-        1.50129995e-02,  1.75328159e+00]
+
         self.round = 0
         self.cash = 0
         self.past_prices = {product: [] for product in PRODUCTS}
         self.ema_prices = {product: None for product in PRODUCTS}
         self.ema_param = 0.5
+        self.theta=[ 9.758,  6.402, -5.561, 3.320, 1.501,  1.753]
+        self.sunlight = [] #here we will store the sunlight time series for orchids
+        self.humidity = [] #here we will store the humidity time series for orchids
 
+    #ROUND 1 UTILS
     def get_position(self, product, state: TradingState):
         return state.position.get(product, 0)
     
@@ -200,7 +204,11 @@ class Trader:
             else:
                 self.ema_prices[product] = self.ema_param * mid_price + (1 - self.ema_param) * self.ema_prices[product]
         self.logger.print(f"Updated EMA Prices: {self.ema_prices}")
-    
+
+    #ROUND 2 UTILS
+
+
+    #ROUND 1 STRATEGIES
     def amethyst_strategy(self, state: TradingState):
 
         self.logger.print("Executing Amethyst strategy")
@@ -211,11 +219,8 @@ class Trader:
 
         best_bid, best_ask = self.get_best_bid_ask(AMETHYSTS, state) #get the best bid and ask currently in hte orderbook
 
-        orders = [] #initialize an empty list containing the BUY and SELL orders
-                    #To create a BUY order append : (PRODUCT, MAXIMUM BUY PRICE, + QUANTITY)
-                    #To create a SELL order append : (PRODUCT, MINIMUM SELL PRICE, - QUANTITY)
+        orders = []
         
-        #new strategy
         if best_bid > DEFAULT_PRICES[AMETHYSTS] and best_ask > DEFAULT_PRICES[AMETHYSTS]:
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS], bid_volume)) #buy at 10K
             orders.append(Order(AMETHYSTS, best_bid, ask_volume)) #sell at best_bid
@@ -264,9 +269,56 @@ class Trader:
         return orders
 
 
-    '''
+    #ROUND 2 STRATEGIES
+    def orchids_strategy(self, state: TradingState, sunlight, humidity):
+        self.logger.print("Executing Orchids strategy")
 
-    def orchid_strategy(self, state: TradingState):
+        position_orchids = self.get_position(ORCHIDS, state)
+        bid_volume = self.position_limit[ORCHIDS] - position_orchids
+        ask_volume = -self.position_limit[ORCHIDS] - position_orchids
+
+        best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
+
+        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
+
+        sunlight_deriv = None
+        humidity_deriv = None
+
+        # Calculate derivatives if there are enough data points
+        if len(sunlight) >= 10:
+            sunlight_deriv = sunlight[-1] - sunlight[-10]
+        if len(humidity) >= 10:
+            humidity_deriv = humidity[-1] - humidity[-10]
+
+        orders = []
+
+        # If both sunlight and humidity are increasing significantly
+        if sunlight_deriv is not None and humidity_deriv is not None:
+            if sunlight_deriv > 0 and humidity_deriv > 0:
+                orders.append(Order(ORCHIDS, best_bid + 1, bid_volume))
+
+            # If both sunlight and humidity are decreasing significantly
+            elif sunlight_deriv < 0 and humidity_deriv < 0:
+                orders.append(Order(ORCHIDS, best_ask - 1, ask_volume))
+
+            # If sunlight and humidity changes have different signs
+            elif sunlight_deriv * humidity_deriv < 0:
+                #bid_diff = abs(best_bid - mid_price)
+                #ask_diff = abs(mid_price - best_ask)
+                #min_diff = min(bid_diff, ask_diff)
+
+                orders.append(Order(ORCHIDS, best_bid + 1, 10))
+                orders.append(Order(ORCHIDS, best_ask - 1, -10))
+
+        # If conditions are relatively stable or there's insufficient data
+        if len(sunlight) < 10 or len(humidity) < 10 or sunlight_deriv is None or humidity_deriv is None:
+            pass
+
+        return orders
+   
+
+    '''
+    def orchids_strategy(self, state: TradingState):
         self.logger.print("Executing ORCHID strategy")
             #conversion_obs = state.ConversionObservation
         conversion_obs = state.observations.conversionObservations['ORCHIDS']
@@ -302,8 +354,9 @@ class Trader:
 
         return orders
         '''
-            
-    def orchid_strategy(self, state: TradingState):
+
+    '''        
+    def orchids_strategy(self, state: TradingState):
         try:
             self.logger.print("Starting ORCHID strategy execution.")
             # Check if ORCHIDS is correctly set and accessible
@@ -312,6 +365,7 @@ class Trader:
             # Access the conversion observations for 'ORCHIDS'
             if ORCHIDS in state.observations.conversionObservations:
                 conversion_obs = state.observations.conversionObservations[ORCHIDS]
+                self.logger.print(f"Conversion Observations: {conversion_obs}")
             else:
                 raise ValueError("ORCHIDS data not found in conversion observations")
 
@@ -336,9 +390,9 @@ class Trader:
 
             orders = []
             if current_price < predicted_price and bid_volume > 0:
-                orders.append(Order(ORCHIDS, current_price, bid_volume))
+                orders.append(Order(ORCHIDS, int(round(current_price)), bid_volume))
             elif current_price > predicted_price and position_orchids > 0:
-                orders.append(Order(ORCHIDS, current_price, ask_volume))
+                orders.append(Order(ORCHIDS, int(round(current_price)), ask_volume))
 
             self.logger.print("ORCHID strategy executed successfully.")
             return orders
@@ -346,20 +400,20 @@ class Trader:
         except Exception as e:
             self.logger.print(f"Error in ORCHID strategy: {e}")
             raise  # Re-raise the exception after logging for further analysis
-
-
-
-
-        
-
-
-
+        '''
     
+    
+
+
     def run(self, state: TradingState):
         self.round += 1
         self.logger.print(f"Round: {self.round}, Timestamp: {state.timestamp}")
         
         self.update_ema_price(state)
+        
+        #append to self.sunlight and self.humidity the current values of sunlight and humidity
+        self.sunlight.append(state.observations.conversionObservations[ORCHIDS].sunlight)
+        self.humidity.append(state.observations.conversionObservations[ORCHIDS].humidity)
         
         result = {}
         
@@ -378,9 +432,9 @@ class Trader:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
         """
         try:
-            result[ORCHIDS] = self.orchid_strategy(state)
+            result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
-            self.logger.print(f"Error in ORCHID strategy: {e}")
+            self.logger.print(f"Error in ORCHIDS strategy: {e}")
         
 
 

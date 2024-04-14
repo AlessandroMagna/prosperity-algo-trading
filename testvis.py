@@ -6,6 +6,7 @@ from typing import List
 from typing import Any
 import string
 import math
+import pandas as pd
 #from logger import logger  # Assuming Logger is properly defined and imported
 
 AMETHYSTS = 'AMETHYSTS'
@@ -18,7 +19,6 @@ DEFAULT_PRICES = {
     AMETHYSTS: 10_000,
     STARFRUIT: 5_000,
 }
-
 
 class Logger:
     def __init__(self) -> None:
@@ -136,6 +136,7 @@ class Trader:
         self.round = 0
         self.cash = 0
         self.past_prices = {product: [] for product in PRODUCTS}
+        self.past_prices_starfruit = []
         self.ema_prices = {product: None for product in PRODUCTS}
         self.ema_param = 0.5
 
@@ -195,6 +196,24 @@ class Trader:
             else:
                 self.ema_prices[product] = self.ema_param * mid_price + (1 - self.ema_param) * self.ema_prices[product]
         self.logger.print(f"Updated EMA Prices: {self.ema_prices}")
+
+    def predict_starfruit_price(self):
+        """
+        Given a set of 6 coefficients and 1 intercept, predict the starfruit price as the weighted average of the past prices
+        having the weights in coef
+        """
+        coef = [ 0.310888, 0.224272, 0.147905, 0.126696, 0.090512, 0.096894]
+        intercept = 14.333341
+
+        if len(self.past_prices_starfruit) < 6:
+            return DEFAULT_PRICES[STARFRUIT]
+        else:
+            predicted_price = intercept + sum([coef[i] * self.past_prices_starfruit[-(i+1)] for i in range(6)])
+
+        return predicted_price
+    
+
+
     
     def amethyst_strategy(self, state: TradingState):
 
@@ -227,6 +246,7 @@ class Trader:
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] - min_diff + 1, bid_volume)) #buy
             orders.append(Order(AMETHYSTS, DEFAULT_PRICES[AMETHYSTS] + min_diff - 1, ask_volume)) #sell
             
+
         return orders
     
     def starfruit_strategy(self, state: TradingState):
@@ -262,7 +282,8 @@ class Trader:
         self.logger.print(f"Round: {self.round}, Timestamp: {state.timestamp}")
         
         self.update_ema_price(state)
-        
+        self.past_prices_starfruit.append(self.get_mid_price(STARFRUIT, state)) #append the new starfruit mid price at each iteration
+
         result = {}
         
         # Implementing AMETHYSTS Strategy

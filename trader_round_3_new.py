@@ -290,6 +290,8 @@ class Trader:
         bid_volume = self.position_limit[ORCHIDS] - position_orchids
         ask_volume = -self.position_limit[ORCHIDS] - position_orchids
 
+        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
+
         best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
 
         sunlight_deriv = None
@@ -306,17 +308,17 @@ class Trader:
         # If both sunlight and humidity are increasing 
         if sunlight_deriv is not None and humidity_deriv is not None:
             if sunlight_deriv > 0 and humidity_deriv > 0:
-                orders.append(Order(ORCHIDS, best_ask, bid_volume))
+                orders.append(Order(ORCHIDS, mid_price, bid_volume))
 
             # If both sunlight and humidity are decreasing 
             elif sunlight_deriv < 0 and humidity_deriv < 0:
-                orders.append(Order(ORCHIDS, best_bid, ask_volume))
+                orders.append(Order(ORCHIDS, mid_price, ask_volume))
             
             # If sunlight and humidity changes have different signs
             elif sunlight_deriv * humidity_deriv < 0:
-        
-                orders.append(Order(ORCHIDS, best_bid + 1, 25))
-                orders.append(Order(ORCHIDS, best_ask - 1, - 25))
+                pass
+                #orders.append(Order(ORCHIDS, best_bid + 1, 25))
+                #orders.append(Order(ORCHIDS, best_ask - 1, - 25))
             
 
         # If conditions are relatively stable or there's insufficient data
@@ -327,6 +329,7 @@ class Trader:
     
         
     #ROUND 3  buy indi and sell basket
+    """
     def choco_straw_rose_bask_strategy(self, state: TradingState):
         self.logger.print("Executing choco_straw_rose_bask_ strategy")
 
@@ -344,6 +347,9 @@ class Trader:
         best_bid_chocolate, best_ask_chocolate = self.get_best_bid_ask(CHOCOLATE, state)
         best_bid_roses, best_ask_roses = self.get_best_bid_ask(ROSES, state)
         best_bid_gift_basket, best_ask_gift_basket = self.get_best_bid_ask(GIFT_BASKET, state)
+
+        #get the volume for the best ask and best bid for CHOCOLATE, STRAWBERRIES, ROSES and GIFT_BASKET
+        volume_best_ask_strawberries = state.order_depths[STRAWBERRIES].sell_orders[best_ask_strawberries]
 
 
         # Calc cost based on midprice POTENTIALLY TRY WITH BEST BID?
@@ -367,20 +373,52 @@ class Trader:
         ask_volume_gift_basket=-self.position_limit[GIFT_BASKET] - position_gift_basket
 
         # Calculate how many baskets can be formed with the available inventory
-        baskets_possible = max(bid_volume_chocolate // 4, bid_volume_strawberries // 6, bid_volume_roses,0)
-
+        baskets_possible = min(bid_volume_chocolate // 4, bid_volume_strawberries // 6, bid_volume_roses)
+    
 
         # Check if buying components and selling as a basket is profitable
         if cost_of_components < basket_price:
-            orders_chocolate.append(Order(CHOCOLATE, best_ask_chocolate, min(4 * baskets_possible,bid_volume_chocolate)))
-            orders_strawberries.append(Order(STRAWBERRIES, best_ask_strawberries, min(6 * baskets_possible, bid_volume_strawberries)))
-            orders_roses.append(Order(ROSES, best_ask_roses, min(baskets_possible,bid_volume_roses)))
-            orders_gift_basket.append(Order(GIFT_BASKET,best_bid_gift_basket,min(baskets_possible, ask_volume_gift_basket)))
+            orders_chocolate.append(    Order(CHOCOLATE ,    int(best_ask_chocolate) ,    min(4 * baskets_possible,bid_volume_chocolate)))
+            orders_strawberries.append( Order(STRAWBERRIES , int(best_ask_strawberries) , min(6 * baskets_possible, bid_volume_strawberries)))
+            orders_roses.append(        Order(ROSES ,        int(best_ask_roses) ,        min(baskets_possible , bid_volume_roses)))
+            orders_gift_basket.append(  Order(GIFT_BASKET ,  int(best_bid_gift_basket) ,  min(baskets_possible,  ask_volume_gift_basket)))
             self.logger.print(f"Executed trade to buy components and sell {baskets_possible} baskets.")
 
 
         return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
+        """
+    
+    def choco_straw_rose_bask_strategy(self, state: TradingState):
+        self.logger.print("Executing choco_straw_rose_bask_ strategy")
 
+        VOLUME = 1
+
+        orders_chocolate=[]
+        orders_strawberries=[]
+        orders_roses=[]
+        orders_gift_basket=[]
+
+        strawberries_price = self.get_mid_price(STRAWBERRIES, state)
+        chocolate_price = self.get_mid_price(CHOCOLATE, state)
+        roses_price = self.get_mid_price(ROSES, state)
+        basket_price = self.get_mid_price(GIFT_BASKET, state)
+
+        spread = basket_price - (4 * chocolate_price + 6 * strawberries_price + roses_price)
+
+        if spread <= 200 :
+            orders_gift_basket.append(  Order(GIFT_BASKET,  int(basket_price),       VOLUME))   
+            orders_chocolate.append(    Order(CHOCOLATE,    int(chocolate_price),    -4*VOLUME))
+            orders_strawberries.append( Order(STRAWBERRIES, int(strawberries_price), -6*VOLUME))
+            orders_roses.append(        Order(ROSES,        int(roses_price),        -1*VOLUME))
+        elif spread >= 400 :
+            orders_gift_basket.append(  Order(GIFT_BASKET,  int(basket_price),       -VOLUME))   
+            orders_chocolate.append(    Order(CHOCOLATE,    int(chocolate_price),    4*VOLUME))
+            orders_strawberries.append( Order(STRAWBERRIES, int(strawberries_price), 6*VOLUME))
+            orders_roses.append(        Order(ROSES,        int(roses_price),        1*VOLUME))
+        else:
+            pass
+        
+        return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
 
 
     def run(self, state: TradingState):
@@ -389,14 +427,12 @@ class Trader:
 
         self.update_ema_price(state)
         
-        '''
+        
         #append to self.sunlight and self.humidity the current values of sunlight and humidity
         self.sunlight.append(state.observations.conversionObservations[ORCHIDS].sunlight)
         self.humidity.append(state.observations.conversionObservations[ORCHIDS].humidity)
-        '''
-        result = {}
         
-            # Implementing AMETHYSTS Strategy
+        result = {}
 
         '''
         try:
@@ -409,14 +445,14 @@ class Trader:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
-     
+        
+
         try:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
         '''
-
-       
+        
         try:
             orders_strawberries, orders_chocolate, orders_roses, orders_gift_basket = self.choco_straw_rose_bask_strategy(state)
             result[STRAWBERRIES] = orders_strawberries
@@ -425,7 +461,7 @@ class Trader:
             result[GIFT_BASKET] = orders_gift_basket
         except Exception as e:
             self.logger.print(f"Error in choco_straw_rose_bask strategy: {e}")
- 
+
 
         conversions = 0 
         trader_data = "SAMPLE"

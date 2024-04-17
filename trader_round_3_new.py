@@ -2,11 +2,11 @@ import json
 #from datamodel import OrderDepth, UserId, TradingState, Order
 from datamodel import Listing, Observation, Order, OrderDepth, ProsperityEncoder, Symbol, Trade, TradingState, ConversionObservation
 
-from typing import List
-from typing import Any
+from typing import Any, Dict, List, Union
 import string
 import math
 import numpy as np
+import pandas as pd
 #from logger import logger  # Assuming Logger is properly defined and imported
 
 AMETHYSTS = 'AMETHYSTS'
@@ -18,18 +18,39 @@ CHOCOLATE='CHOCOLATE'
 STRAWBERRIES='STRAWBERRIES'
 SUBMISSION = 'SUBMISSION'
 
-
-PRODUCTS = [AMETHYSTS, STARFRUIT, ORCHIDS, GIFT_BASKET, ROSES, CHOCOLATE, STRAWBERRIES]
+PRODUCTS = [
+    AMETHYSTS, 
+    STARFRUIT, 
+    ORCHIDS, 
+    GIFT_BASKET, 
+    ROSES, 
+    CHOCOLATE, 
+    STRAWBERRIES
+]
 
 DEFAULT_PRICES = {
     AMETHYSTS: 10_000,
     STARFRUIT: 5_000,
     ORCHIDS: 1_100,
-    GIFT_BASKET:0,
-    ROSES:0,
-    CHOCOLATE:0,
-    STRAWBERRIES:0,
+    GIFT_BASKET:70_700,
+    ROSES:14_500,
+    CHOCOLATE:7_915,
+    STRAWBERRIES:4_030
 }
+
+POSITION_LIMITS = {
+        AMETHYSTS: 20,
+        STARFRUIT: 20,
+        ORCHIDS: 100,
+        GIFT_BASKET:60,
+        ROSES:60,
+        CHOCOLATE:250,
+        STRAWBERRIES:350
+}
+
+VOLUME_BASKET = 2
+SPREAD_THRESHOLD = 1.96
+ROLLING_WINDOW = 200
 
 
 class Logger:
@@ -148,7 +169,7 @@ class Trader:
             GIFT_BASKET:60,
             ROSES:60,
             CHOCOLATE:250,
-            STRAWBERRIES:350,
+            STRAWBERRIES:350
         }
 
         self.round = 0
@@ -159,6 +180,7 @@ class Trader:
         self.theta=[ 9.758,  6.402, -5.561, 3.320, 1.501,  1.753]
         self.sunlight = [] #here we will store the sunlight time series for orchids
         self.humidity = [] #here we will store the humidity time series for orchids
+        self.spread = []
 
     #ROUND 1 UTILS
     def get_position(self, product, state: TradingState):
@@ -216,7 +238,7 @@ class Trader:
                 self.ema_prices[product] = mid_price
             else:
                 self.ema_prices[product] = self.ema_param * mid_price + (1 - self.ema_param) * self.ema_prices[product]
-        self.logger.print(f"Updated EMA Prices: {self.ema_prices}")
+        #self.logger.print(f"Updated EMA Prices: {self.ema_prices}")
 
     #ROUND 2 UTILS
 
@@ -328,102 +350,106 @@ class Trader:
         return orders
     
         
-    #ROUND 3  buy indi and sell basket
-    """
-    def choco_straw_rose_bask_strategy(self, state: TradingState):
-        self.logger.print("Executing choco_straw_rose_bask_ strategy")
-
-        orders_chocolate=[]
-        orders_strawberries=[]
-        orders_roses=[]
-        orders_gift_basket=[]
-
-        strawberries_price = self.get_mid_price(STRAWBERRIES, state)
-        chocolate_price = self.get_mid_price(CHOCOLATE, state)
-        roses_price = self.get_mid_price(ROSES, state)
-        basket_price = self.get_mid_price(GIFT_BASKET, state)
-
-        best_bid_strawberries, best_ask_strawberries = self.get_best_bid_ask(STRAWBERRIES, state)
-        best_bid_chocolate, best_ask_chocolate = self.get_best_bid_ask(CHOCOLATE, state)
-        best_bid_roses, best_ask_roses = self.get_best_bid_ask(ROSES, state)
-        best_bid_gift_basket, best_ask_gift_basket = self.get_best_bid_ask(GIFT_BASKET, state)
-
-        #get the volume for the best ask and best bid for CHOCOLATE, STRAWBERRIES, ROSES and GIFT_BASKET
-        volume_best_ask_strawberries = state.order_depths[STRAWBERRIES].sell_orders[best_ask_strawberries]
-
-
-        # Calc cost based on midprice POTENTIALLY TRY WITH BEST BID?
-        cost_of_components = 4 * chocolate_price + 6 * strawberries_price + roses_price
-        
-
-        #Get the positions 
-
-        position_strawberries=self.get_position(STRAWBERRIES, state)
-        bid_volume_strawberries = self.position_limit[STRAWBERRIES] - position_strawberries
-
-
-        position_chocolate= self.get_position(CHOCOLATE, state)
-        bid_volume_chocolate = self.position_limit[CHOCOLATE] - position_chocolate
-
-
-        position_roses=self.get_position(ROSES, state)
-        bid_volume_roses = self.position_limit[ROSES] - position_roses
-
-        position_gift_basket=self.get_position(GIFT_BASKET, state)
-        ask_volume_gift_basket=-self.position_limit[GIFT_BASKET] - position_gift_basket
-
-        # Calculate how many baskets can be formed with the available inventory
-        baskets_possible = min(bid_volume_chocolate // 4, bid_volume_strawberries // 6, bid_volume_roses)
-    
-
-        # Check if buying components and selling as a basket is profitable
-        if cost_of_components < basket_price:
-            orders_chocolate.append(    Order(CHOCOLATE ,    int(best_ask_chocolate) ,    min(4 * baskets_possible,bid_volume_chocolate)))
-            orders_strawberries.append( Order(STRAWBERRIES , int(best_ask_strawberries) , min(6 * baskets_possible, bid_volume_strawberries)))
-            orders_roses.append(        Order(ROSES ,        int(best_ask_roses) ,        min(baskets_possible , bid_volume_roses)))
-            orders_gift_basket.append(  Order(GIFT_BASKET ,  int(best_bid_gift_basket) ,  min(baskets_possible,  ask_volume_gift_basket)))
-            self.logger.print(f"Executed trade to buy components and sell {baskets_possible} baskets.")
-
-
-        return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
+    #ROUND 3  
+    def update_spread(self, state: TradingState):
         """
+        this method appends the spread value to the self.spread list at each state
+        """
+        price_strawberries = self.get_mid_price(STRAWBERRIES, state)
+        price_chocolate = self.get_mid_price(CHOCOLATE, state)
+        price_roses = self.get_mid_price(ROSES, state)
+        price_basket = self.get_mid_price(GIFT_BASKET, state)
+
+        current_spread = price_basket - (4 * price_chocolate + 6 * price_strawberries + price_roses)
+
+        self.spread.append(current_spread)
+
     
     def choco_straw_rose_bask_strategy(self, state: TradingState):
-        self.logger.print("Executing choco_straw_rose_bask_ strategy")
+        """ 
+        gift_basket = 4 * chocolate + 6 * strawberries + roses
+        """
 
-        VOLUME = 1
+        self.logger.print("Executing choco_straw_rose_bask_ strategy")
 
         orders_chocolate=[]
         orders_strawberries=[]
         orders_roses=[]
         orders_gift_basket=[]
 
-        strawberries_price = self.get_mid_price(STRAWBERRIES, state)
-        chocolate_price = self.get_mid_price(CHOCOLATE, state)
-        roses_price = self.get_mid_price(ROSES, state)
-        basket_price = self.get_mid_price(GIFT_BASKET, state)
+        def create_orders(buy_basket: bool, multiplier):
 
-        spread = basket_price - (4 * chocolate_price + 6 * strawberries_price + roses_price)
+            if buy_basket:
+                sign = 1
+                price_basket = 1_000_000
+                price_others = 1
+            else:
+                sign = -1
+                price_basket = 1
+                price_others = 1_000_000
+            
+            orders_gift_basket.append(
+                Order(GIFT_BASKET, price_basket, sign*VOLUME_BASKET*multiplier)
+            )
+            orders_chocolate.append(
+                Order(CHOCOLATE, price_others, -sign*4*VOLUME_BASKET*multiplier)
+            )
+            orders_strawberries.append(
+                Order(STRAWBERRIES, price_others, -sign*6*VOLUME_BASKET*multiplier)
+            )
+            orders_roses.append(
+                Order(ROSES, price_others, -sign*VOLUME_BASKET*multiplier)
+            )
 
-        if spread <= 200 :
-            orders_gift_basket.append(  Order(GIFT_BASKET,  int(basket_price),       VOLUME))   
-            orders_chocolate.append(    Order(CHOCOLATE,    int(chocolate_price),    -4*VOLUME))
-            orders_strawberries.append( Order(STRAWBERRIES, int(strawberries_price), -6*VOLUME))
-            orders_roses.append(        Order(ROSES,        int(roses_price),        -1*VOLUME))
-        elif spread >= 400 :
-            orders_gift_basket.append(  Order(GIFT_BASKET,  int(basket_price),       -VOLUME))   
-            orders_chocolate.append(    Order(CHOCOLATE,    int(chocolate_price),    4*VOLUME))
-            orders_strawberries.append( Order(STRAWBERRIES, int(strawberries_price), 6*VOLUME))
-            orders_roses.append(        Order(ROSES,        int(roses_price),        1*VOLUME))
-        else:
-            pass
-        
+        #calculate the mid prices of everything
+        price_strawberries= self.get_mid_price(STRAWBERRIES, state)
+        price_chocolate = self.get_mid_price(CHOCOLATE, state)
+        price_roses = self.get_mid_price(ROSES, state)
+        price_basket = self.get_mid_price(GIFT_BASKET, state)
+
+        #calculate the spread at the current state
+        spread = price_basket - (4 * price_chocolate + 6 * price_strawberries + price_roses)
+
+        #get the current position we have on the GIFTS_BASKET
+        position_basket = self.get_position(GIFT_BASKET, state)
+
+        #calculate a time series of spread mean and stdev with rolling window size of ROLLING_WINDOW
+        past_spreads = pd.Series(self.spread)
+        spread_mean = past_spreads.rolling(ROLLING_WINDOW).mean()
+        spread_sd = past_spreads.rolling(ROLLING_WINDOW).std()
+
+        #calculate the average spread over a smaller window of 5 periods
+        spread_5 =  past_spreads.rolling(5).mean()
+
+        if not np.isnan(spread_mean.iloc[-1]): #if the last spread_mean is not a NaN, I will use the last values of the timeseries just calculated
+            spread_mean = spread_mean.iloc[-1]
+            spread_sd = spread_sd.iloc[-1]
+            spread_5 = spread_5.iloc[-1]
+           
+            if abs(position_basket) <= POSITION_LIMITS[GIFT_BASKET] - VOLUME_BASKET: #if we can buy or sell other baskets:
+                if spread_5 < spread_mean - SPREAD_THRESHOLD * spread_sd: #if the recent spread is more than 1.96 standard deviations below the mean, buy the basket and sell the components
+                    buy_basket = True
+                    create_orders(buy_basket, multiplier=1)
+                elif spread_5 > spread_mean + SPREAD_THRESHOLD * spread_sd:
+                    buy_basket = False
+                    create_orders(buy_basket, multiplier=1)
+                else:
+                    pass
+
+            else: #if we reached the maximum number of baskets we can buy or sell, decrease our position by 1 basket
+                if position_basket > 0: #in this case I want to sell a basket
+                    buy_basket = False
+                    create_orders(buy_basket, multiplier=2)
+                else: #in this case I want to buy a basket
+                    buy_basket = True
+                    create_orders(buy_basket, multiplier=2)
+
         return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
 
 
     def run(self, state: TradingState):
         self.round += 1
-        self.logger.print(f"Round: {self.round}, Timestamp: {state.timestamp}")
+        #self.logger.print(f"Round: {self.round}, Timestamp: {state.timestamp}")
 
         self.update_ema_price(state)
         
@@ -431,6 +457,8 @@ class Trader:
         #append to self.sunlight and self.humidity the current values of sunlight and humidity
         self.sunlight.append(state.observations.conversionObservations[ORCHIDS].sunlight)
         self.humidity.append(state.observations.conversionObservations[ORCHIDS].humidity)
+
+        self.update_spread(state)
         
         result = {}
 
@@ -454,14 +482,13 @@ class Trader:
         '''
         
         try:
-            orders_strawberries, orders_chocolate, orders_roses, orders_gift_basket = self.choco_straw_rose_bask_strategy(state)
-            result[STRAWBERRIES] = orders_strawberries
-            result[CHOCOLATE] = orders_chocolate
-            result[ROSES] = orders_roses
-            result[GIFT_BASKET] = orders_gift_basket
+            result[CHOCOLATE], \
+            result[STRAWBERRIES], \
+            result[ROSES], \
+            result[GIFT_BASKET] = self.choco_straw_rose_bask_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in choco_straw_rose_bask strategy: {e}")
-
+        
 
         conversions = 0 
         trader_data = "SAMPLE"

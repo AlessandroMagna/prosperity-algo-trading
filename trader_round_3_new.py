@@ -41,7 +41,7 @@ DEFAULT_PRICES = {
 POSITION_LIMITS = {
         AMETHYSTS: 20,
         STARFRUIT: 20,
-        ORCHIDS: 100,
+        ORCHIDS: 20,
         GIFT_BASKET:60,
         ROSES:60,
         CHOCOLATE:250,
@@ -51,6 +51,7 @@ POSITION_LIMITS = {
 VOLUME_BASKET = 2
 SPREAD_THRESHOLD = 1.96
 ROLLING_WINDOW = 200
+MULTIPLIER = 3
 
 
 class Logger:
@@ -165,7 +166,7 @@ class Trader:
         self.position_limit = {
             AMETHYSTS: 20,
             STARFRUIT: 20,
-            ORCHIDS: 100,
+            ORCHIDS: 20,
             GIFT_BASKET:60,
             ROSES:60,
             CHOCOLATE:250,
@@ -436,13 +437,13 @@ class Trader:
                 else:
                     pass
 
-            else: #if we reached the maximum number of baskets we can buy or sell, decrease our position by 1 basket
+            else: #if we reached the maximum number of baskets we can buy or sell, decrease our position by multiplier basket
                 if position_basket > 0: #in this case I want to sell a basket
                     buy_basket = False
-                    create_orders(buy_basket, multiplier=2)
+                    create_orders(buy_basket, multiplier=MULTIPLIER)
                 else: #in this case I want to buy a basket
                     buy_basket = True
-                    create_orders(buy_basket, multiplier=2)
+                    create_orders(buy_basket, multiplier=MULTIPLIER)
 
         return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
 
@@ -462,7 +463,7 @@ class Trader:
         
         result = {}
 
-        '''
+        
         try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
@@ -479,7 +480,7 @@ class Trader:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
-        '''
+        
         
         try:
             result[CHOCOLATE], \

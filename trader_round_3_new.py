@@ -241,7 +241,34 @@ class Trader:
                 self.ema_prices[product] = self.ema_param * mid_price + (1 - self.ema_param) * self.ema_prices[product]
         #self.logger.print(f"Updated EMA Prices: {self.ema_prices}")
 
-    #ROUND 2 UTILS
+    def reset_positions(self, state: TradingState, product):
+        """
+        this method allows to reset the position of a product to zero.
+
+        """
+        position = self.get_position(product, state)
+        mid_price = int(round(self.get_mid_price(product, state)))
+        best_bid, best_ask = self.get_best_bid_ask(product, state)
+
+        if position >= 0:
+            return Order(product, best_bid, -position)
+        else:
+            return Order(product, best_ask, -position)  
+   
+
+    #ROUND 3 UTILS
+    def update_spread(self, state: TradingState):
+        """
+        this method appends the spread value to the self.spread list at each state
+        """
+        price_strawberries = self.get_mid_price(STRAWBERRIES, state)
+        price_chocolate = self.get_mid_price(CHOCOLATE, state)
+        price_roses = self.get_mid_price(ROSES, state)
+        price_basket = self.get_mid_price(GIFT_BASKET, state)
+
+        current_spread = price_basket - (4 * price_chocolate + 6 * price_strawberries + price_roses)
+
+        self.spread.append(current_spread)
 
 
     #ROUND 1 STRATEGIES
@@ -309,63 +336,52 @@ class Trader:
     def orchids_strategy(self, state: TradingState, sunlight, humidity):
         self.logger.print("Executing Orchids strategy")
 
+        current_timestamp = int(state.timestamp)
+
         position_orchids = self.get_position(ORCHIDS, state)
         bid_volume = self.position_limit[ORCHIDS] - position_orchids
         ask_volume = -self.position_limit[ORCHIDS] - position_orchids
 
-        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
-
         best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
+
+        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
 
         sunlight_deriv = None
         humidity_deriv = None
 
         # Calculate derivatives if there are enough data points
-        if len(sunlight) >= 10:
-            sunlight_deriv = sunlight[-1] - sunlight[-10]
-        if len(humidity) >= 10:
-            humidity_deriv = humidity[-1] - humidity[-10]
+        if len(sunlight) >= 20:
+            sunlight_deriv = sunlight[-1] - sunlight[-20]
+        if len(humidity) >= 20:
+            humidity_deriv = humidity[-1] - humidity[-20]
+        
+        self.logger.print(f"Sunlight Derivative: {sunlight_deriv}, Humidity Derivative: {humidity_deriv}")
 
         orders = []
 
+        if current_timestamp <= 900_000:
         # If both sunlight and humidity are increasing 
-        if sunlight_deriv is not None and humidity_deriv is not None:
-            if sunlight_deriv > 0 and humidity_deriv > 0:
-                orders.append(Order(ORCHIDS, mid_price, bid_volume))
+            if sunlight_deriv is not None and humidity_deriv is not None:
+                if sunlight_deriv > 0 and humidity_deriv > 0:
+                    orders.append(Order(ORCHIDS, mid_price, bid_volume))
 
-            # If both sunlight and humidity are decreasing 
-            elif sunlight_deriv < 0 and humidity_deriv < 0:
-                orders.append(Order(ORCHIDS, mid_price, ask_volume))
-            
-            # If sunlight and humidity changes have different signs
-            elif sunlight_deriv * humidity_deriv < 0:
+                # If both sunlight and humidity are decreasing 
+                elif sunlight_deriv < 0 and humidity_deriv < 0:
+                    orders.append(Order(ORCHIDS, mid_price, ask_volume))
+                
+                # As soon as the derivatives are discordant reset the position to 0
+                else:
+                    orders.append(self.reset_positions(state, ORCHIDS))  
+                    
+            if len(sunlight) < 20 or len(humidity) < 20 or sunlight_deriv is None or humidity_deriv is None:
                 pass
-                #orders.append(Order(ORCHIDS, best_bid + 1, 25))
-                #orders.append(Order(ORCHIDS, best_ask - 1, - 25))
-            
-
-        # If conditions are relatively stable or there's insufficient data
-        if len(sunlight) < 10 or len(humidity) < 10 or sunlight_deriv is None or humidity_deriv is None:
-            pass
+        else:
+            orders.append(self.reset_positions(state, ORCHIDS))
 
         return orders
     
         
-    #ROUND 3  
-    def update_spread(self, state: TradingState):
-        """
-        this method appends the spread value to the self.spread list at each state
-        """
-        price_strawberries = self.get_mid_price(STRAWBERRIES, state)
-        price_chocolate = self.get_mid_price(CHOCOLATE, state)
-        price_roses = self.get_mid_price(ROSES, state)
-        price_basket = self.get_mid_price(GIFT_BASKET, state)
-
-        current_spread = price_basket - (4 * price_chocolate + 6 * price_strawberries + price_roses)
-
-        self.spread.append(current_spread)
-
-    
+    #ROUND 3      
     def choco_straw_rose_bask_strategy(self, state: TradingState):
         """ 
         gift_basket = 4 * chocolate + 6 * strawberries + roses
@@ -460,6 +476,8 @@ class Trader:
         self.humidity.append(state.observations.conversionObservations[ORCHIDS].humidity)
 
         self.update_spread(state)
+
+        print(f"TIMESTAMP: {state.timestamp}")
         
         result = {}
 
@@ -475,7 +493,7 @@ class Trader:
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
         
-
+        
         try:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:

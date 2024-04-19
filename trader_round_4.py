@@ -17,6 +17,8 @@ ROSES='ROSES'
 CHOCOLATE='CHOCOLATE'
 STRAWBERRIES='STRAWBERRIES'
 SUBMISSION = 'SUBMISSION'
+COCONUT = 'COCONUT'
+COCONUT_COUPON = 'COCONUT_COUPON'
 
 PRODUCTS = [
     AMETHYSTS, 
@@ -25,7 +27,9 @@ PRODUCTS = [
     GIFT_BASKET, 
     ROSES, 
     CHOCOLATE, 
-    STRAWBERRIES
+    STRAWBERRIES, 
+    COCONUT,
+    COCONUT_COUPON
 ]
 
 DEFAULT_PRICES = {
@@ -35,7 +39,9 @@ DEFAULT_PRICES = {
     GIFT_BASKET:70_700,
     ROSES:14_500,
     CHOCOLATE:7_915,
-    STRAWBERRIES:4_030
+    STRAWBERRIES:4_030,
+    COCONUT: 1_000,
+    COCONUT_COUPON: 635
 }
 
 POSITION_LIMITS = {
@@ -45,10 +51,13 @@ POSITION_LIMITS = {
         GIFT_BASKET:60,
         ROSES:60,
         CHOCOLATE:250,
-        STRAWBERRIES:350
+        STRAWBERRIES:350,
+        COCONUT:300,
+        COCONUT_COUPON:600
 }
 
 VOLUME_BASKET = 2
+VOLUME_COCONUT = 2
 SPREAD_THRESHOLD = 1.96
 ROLLING_WINDOW = 200
 MULTIPLIER = 3
@@ -170,7 +179,9 @@ class Trader:
             GIFT_BASKET:60,
             ROSES:60,
             CHOCOLATE:250,
-            STRAWBERRIES:350
+            STRAWBERRIES:350, 
+            COCONUT:300,
+            COCONUT_COUPON:600
         }
 
         self.round = 0
@@ -182,6 +193,7 @@ class Trader:
         self.sunlight = [] #here we will store the sunlight time series for orchids
         self.humidity = [] #here we will store the humidity time series for orchids
         self.spread = []
+        self.coco_spread = []
 
     #ROUND 1 UTILS
     def get_position(self, product, state: TradingState):
@@ -239,7 +251,7 @@ class Trader:
                 self.ema_prices[product] = mid_price
             else:
                 self.ema_prices[product] = self.ema_param * mid_price + (1 - self.ema_param) * self.ema_prices[product]
-        #self.logger.print(f"Updated EMA Prices: {self.ema_prices}")
+        
 
     def reset_positions(self, state: TradingState, product):
         """
@@ -463,13 +475,86 @@ class Trader:
 
         return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
 
+    #ROUND 4 UTILS
+    def update_coco_spread(self, state: TradingState, LOOKBACK = 50):
+        prices_coconut = self.past_prices[COCONUT]
+        prices_coupon = self.past_prices[COCONUT_COUPON]
+
+        if len(prices_coconut) < LOOKBACK or len(prices_coupon) < LOOKBACK:
+            self.coco_spread.append(np.NaN)
+        
+        else:
+            #get the average of the past 50 prices of coconut and coconut_coupon
+            recent_prices_coconut = np.mean(prices_coconut[-LOOKBACK:])
+            recent_prices_coupon = np.mean(prices_coupon[-LOOKBACK:])
+
+            current_spread = recent_prices_coconut - recent_prices_coupon
+
+            self.coco_spread.append(current_spread)
+
+    #ROUND 4
+    def coco_strategy(self, state: TradingState):
+        """
+        implement a strategy based on the spread between coconut and coconut_coupon.
+        if the spread is greater than 1.5 standard deviations above the mean, sell coconut and buy coconut_coupon.
+        if the spread is smaller than 1.5 standard deviations below the mean, sell coconut_coupon and buy coconut.
+        avoid trading for the first 1000 timestamps to get a good estimate of the mean and standard deviation of the spread.
+        """ 
+        self.logger.print("Executing Coco strategy")
+
+        position_coconut = self.get_position(COCONUT, state)
+        position_coupon = self.get_position(COCONUT_COUPON, state)
+
+        buy_volume_coconut = self.position_limit[COCONUT] - position_coconut
+        sell_volume_coconut = - self.position_limit[COCONUT] - position_coconut
+
+        mid_price_coconut = self.get_mid_price(COCONUT, state)
+        mid_price_coupon = self.get_mid_price(COCONUT_COUPON, state)
+
+        best_bid, best_ask = self.get_best_bid_ask(COCONUT, state)
+
+        price_ratio = mid_price_coconut / mid_price_coupon
+
+        spread_series = pd.Series(self.coco_spread)
+
+        orders_coconut = []
+        orders_coupon = []
+
+        if len(spread_series) < 100:
+            pass
+    
+        else:
+            current_spread = spread_series.iloc[-1]
+            spread_mean = np.mean(spread_series)
+            spread_sd = np.std(spread_series)
+
+            if current_spread > spread_mean + 1.5 * spread_sd:
+                orders_coconut.append(Order(COCONUT, mid_price_coconut, sell_volume_coconut))
+                #orders_coupon.append(Order(COCONUT_COUPON, best_ask, VOLUME_COCONUT))
+
+            elif current_spread < spread_mean - 1.5 * spread_sd:
+                orders_coconut.append(Order(COCONUT, mid_price_coconut, buy_volume_coconut))
+                #orders_coupon.append(Order(COCONUT_COUPON, best_bid, -VOLUME_COCONUT))
+
+            elif abs(current_spread) < 1.5:
+                orders_coconut.append(self.reset_positions(state, COCONUT))
+                #orders_coupon.append(self.reset_positions(state, COCONUT_COUPON))
+
+            else:
+                pass
+
+        return orders_coconut, orders_coupon
+
 
     def run(self, state: TradingState):
         self.round += 1
         #self.logger.print(f"Round: {self.round}, Timestamp: {state.timestamp}")
 
+        #update past_prices for COCONUT and COCONUT_COUPON
+        self.past_prices[COCONUT].append(self.get_mid_price(COCONUT, state))
+        self.past_prices[COCONUT_COUPON].append(self.get_mid_price(COCONUT_COUPON, state))
+
         self.update_ema_price(state)
-        
         
         #append to self.sunlight and self.humidity the current values of sunlight and humidity
         self.sunlight.append(state.observations.conversionObservations[ORCHIDS].sunlight)
@@ -477,11 +562,14 @@ class Trader:
 
         self.update_spread(state)
 
+        self.update_coco_spread(state)
+        self.logger.print(f"COCONUT-COUPON Spread: {self.coco_spread}")
+
         print(f"TIMESTAMP: {state.timestamp}")
         
         result = {}
 
-        
+        '''
         try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
@@ -492,14 +580,16 @@ class Trader:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
+        '''
         
-        
+        '''
         try:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
+        '''
         
-        
+        '''
         try:
             result[CHOCOLATE], \
             result[STRAWBERRIES], \
@@ -507,6 +597,13 @@ class Trader:
             result[GIFT_BASKET] = self.choco_straw_rose_bask_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in choco_straw_rose_bask strategy: {e}")
+        '''
+
+        try:
+            result[COCONUT], \
+            result[COCONUT_COUPON] = self.coco_strategy(state)
+        except Exception as e:
+            self.logger.print(f"Error in coco strategy: {e}")
         
 
         conversions = 0 

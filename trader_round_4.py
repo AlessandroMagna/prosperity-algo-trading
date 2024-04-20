@@ -507,9 +507,11 @@ class Trader:
 
         buy_volume_coconut = self.position_limit[COCONUT] - position_coconut
         sell_volume_coconut = - self.position_limit[COCONUT] - position_coconut
+        buy_volume_coupon = self.position_limit[COCONUT_COUPON] - position_coupon
+        sell_volume_coupon = - self.position_limit[COCONUT_COUPON] - position_coupon
 
-        mid_price_coconut = self.get_mid_price(COCONUT, state)
-        mid_price_coupon = self.get_mid_price(COCONUT_COUPON, state)
+        mid_price_coconut = int(round(self.get_mid_price(COCONUT, state)))
+        mid_price_coupon = int(round(self.get_mid_price(COCONUT_COUPON, state)))
 
         best_bid, best_ask = self.get_best_bid_ask(COCONUT, state)
 
@@ -517,13 +519,10 @@ class Trader:
 
         spread_series = pd.Series(self.coco_spread)
 
-        #spread_mean = 9360
-        #spread_sd = 9.3
-
         orders_coconut = []
         orders_coupon = []
 
-        if len(spread_series) < 100:
+        if len(spread_series) < 50:
             pass
     
         else:
@@ -533,15 +532,15 @@ class Trader:
 
             if current_spread > spread_mean + 2 * spread_sd:
                 orders_coconut.append(Order(COCONUT, mid_price_coconut, sell_volume_coconut))
-                #orders_coupon.append(Order(COCONUT_COUPON, best_ask, VOLUME_COCONUT))
+                orders_coupon.append(Order(COCONUT_COUPON, mid_price_coupon, buy_volume_coupon))
 
             elif current_spread < spread_mean - 2 * spread_sd:
                 orders_coconut.append(Order(COCONUT, mid_price_coconut, buy_volume_coconut))
-                #orders_coupon.append(Order(COCONUT_COUPON, best_bid, -VOLUME_COCONUT))
+                orders_coupon.append(Order(COCONUT_COUPON, mid_price_coupon, sell_volume_coupon))
 
             elif abs(current_spread) < spread_mean + 1.5 * spread_sd:
                 orders_coconut.append(self.reset_positions(state, COCONUT))
-                #orders_coupon.append(self.reset_positions(state, COCONUT_COUPON))
+                orders_coupon.append(self.reset_positions(state, COCONUT_COUPON))
 
             else:
                 pass
@@ -572,7 +571,7 @@ class Trader:
         
         result = {}
 
-        '''
+        
         try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
@@ -583,7 +582,7 @@ class Trader:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
-        '''
+        
         
         '''
         try:
@@ -592,7 +591,7 @@ class Trader:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
         '''
         
-        '''
+        
         try:
             result[CHOCOLATE], \
             result[STRAWBERRIES], \
@@ -600,7 +599,7 @@ class Trader:
             result[GIFT_BASKET] = self.choco_straw_rose_bask_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in choco_straw_rose_bask strategy: {e}")
-        '''
+        
 
         try:
             result[COCONUT], \

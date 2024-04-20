@@ -517,6 +517,9 @@ class Trader:
 
         spread_series = pd.Series(self.coco_spread)
 
+        #spread_mean = 9360
+        #spread_sd = 9.3
+
         orders_coconut = []
         orders_coupon = []
 
@@ -528,15 +531,15 @@ class Trader:
             spread_mean = np.mean(spread_series)
             spread_sd = np.std(spread_series)
 
-            if current_spread > spread_mean + 1.5 * spread_sd:
+            if current_spread > spread_mean + 2 * spread_sd:
                 orders_coconut.append(Order(COCONUT, mid_price_coconut, sell_volume_coconut))
                 #orders_coupon.append(Order(COCONUT_COUPON, best_ask, VOLUME_COCONUT))
 
-            elif current_spread < spread_mean - 1.5 * spread_sd:
+            elif current_spread < spread_mean - 2 * spread_sd:
                 orders_coconut.append(Order(COCONUT, mid_price_coconut, buy_volume_coconut))
                 #orders_coupon.append(Order(COCONUT_COUPON, best_bid, -VOLUME_COCONUT))
 
-            elif abs(current_spread) < 1.5:
+            elif abs(current_spread) < spread_mean + 1.5 * spread_sd:
                 orders_coconut.append(self.reset_positions(state, COCONUT))
                 #orders_coupon.append(self.reset_positions(state, COCONUT_COUPON))
 

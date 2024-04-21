@@ -282,6 +282,23 @@ class Trader:
 
         self.spread.append(current_spread)
 
+    #ROUND 4 UTILS
+    def update_coco_spread(self, state: TradingState, LOOKBACK = 50):
+        prices_coconut = self.past_prices[COCONUT]
+        prices_coupon = self.past_prices[COCONUT_COUPON]
+
+        if len(prices_coconut) < LOOKBACK or len(prices_coupon) < LOOKBACK:
+            self.coco_spread.append(np.NaN)
+        
+        else:
+            #get the average of the past 50 prices of coconut and coconut_coupon
+            recent_prices_coconut = np.mean(prices_coconut[-LOOKBACK:])
+            recent_prices_coupon = np.mean(prices_coupon[-LOOKBACK:])
+
+            current_spread = recent_prices_coconut - recent_prices_coupon
+
+            self.coco_spread.append(current_spread)
+
 
     #ROUND 1 STRATEGIES
     def amethyst_strategy(self, state: TradingState):
@@ -475,30 +492,13 @@ class Trader:
 
         return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
 
-    #ROUND 4 UTILS
-    def update_coco_spread(self, state: TradingState, LOOKBACK = 50):
-        prices_coconut = self.past_prices[COCONUT]
-        prices_coupon = self.past_prices[COCONUT_COUPON]
-
-        if len(prices_coconut) < LOOKBACK or len(prices_coupon) < LOOKBACK:
-            self.coco_spread.append(np.NaN)
-        
-        else:
-            #get the average of the past 50 prices of coconut and coconut_coupon
-            recent_prices_coconut = np.mean(prices_coconut[-LOOKBACK:])
-            recent_prices_coupon = np.mean(prices_coupon[-LOOKBACK:])
-
-            current_spread = recent_prices_coconut - recent_prices_coupon
-
-            self.coco_spread.append(current_spread)
-
     #ROUND 4
     def coco_strategy(self, state: TradingState):
         """
         implement a strategy based on the spread between coconut and coconut_coupon.
         if the spread is greater than 1.5 standard deviations above the mean, sell coconut and buy coconut_coupon.
         if the spread is smaller than 1.5 standard deviations below the mean, sell coconut_coupon and buy coconut.
-        avoid trading for the first 1000 timestamps to get a good estimate of the mean and standard deviation of the spread.
+        avoid trading for the first 50 timestamps to get a good estimate of the mean and standard deviation of the spread.
         """ 
         self.logger.print("Executing Coco strategy")
 
@@ -522,7 +522,7 @@ class Trader:
         orders_coconut = []
         orders_coupon = []
 
-        if len(spread_series) < 50:
+        if len(spread_series) < 100:
             pass
     
         else:
@@ -530,15 +530,15 @@ class Trader:
             spread_mean = np.mean(spread_series)
             spread_sd = np.std(spread_series)
 
-            if current_spread > spread_mean + 2 * spread_sd:
+            if current_spread > spread_mean + 1.96 * spread_sd:
                 orders_coconut.append(Order(COCONUT, mid_price_coconut, sell_volume_coconut))
                 orders_coupon.append(Order(COCONUT_COUPON, mid_price_coupon, buy_volume_coupon))
 
-            elif current_spread < spread_mean - 2 * spread_sd:
+            elif current_spread < spread_mean - 1.96 * spread_sd:
                 orders_coconut.append(Order(COCONUT, mid_price_coconut, buy_volume_coconut))
                 orders_coupon.append(Order(COCONUT_COUPON, mid_price_coupon, sell_volume_coupon))
 
-            elif abs(current_spread) < spread_mean + 1.5 * spread_sd:
+            elif abs(current_spread) < spread_mean + 1 * spread_sd:
                 orders_coconut.append(self.reset_positions(state, COCONUT))
                 orders_coupon.append(self.reset_positions(state, COCONUT_COUPON))
 
@@ -565,7 +565,6 @@ class Trader:
         self.update_spread(state)
 
         self.update_coco_spread(state)
-        self.logger.print(f"COCONUT-COUPON Spread: {self.coco_spread}")
 
         print(f"TIMESTAMP: {state.timestamp}")
         

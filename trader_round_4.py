@@ -1,6 +1,6 @@
 import json
 #from datamodel import OrderDepth, UserId, TradingState, Order
-from datamodel import Listing, Observation, Order, OrderDepth, ProsperityEncoder, Symbol, Trade, TradingState, ConversionObservation
+from datamodel import Listing, Observation, Order, OrderDepth, ProsperityEncoder, Symbol, Trade, TradingState, ConversionObservation, OwnTrade
 
 from typing import Any, Dict, List, Union
 import string

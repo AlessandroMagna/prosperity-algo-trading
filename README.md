@@ -33,20 +33,15 @@ To use these trading strategies, follow these steps:
 - **Parameters:** `state` - The current trading state containing market data, `sunlight` - Time series data for sunlight, `humidity` - Time series data for humidity.
 - **Logic:** Buys or sells based on the derivatives of sunlight and humidity, resetting the position if they become discordant.
 
-### Choco Straw Rose Bask Strategy
+### Chocolate Strawberry Rose Basket Strategy
 - **Description:** Implements trades based on the spread between a gift basket and its components.
 - **Function:** `choco_straw_rose_bask_strategy(self, state: TradingState)`
 - **Parameters:** `state` - The current trading state containing market data.
 - **Logic:** Determines whether to buy or sell the gift basket based on the spread between its price and the combined price of its components.
 
-### Coco Strategy
+### Coconut and Coconut Coupon Strategy
 - **Description:** Executes trades based on the spread between coconut and coconut_coupon.
 - **Function:** `coco_strategy(self, state: TradingState)`
 - **Parameters:** `state` - The current trading state containing market data.
 - **Logic:** Waits for enough data points to estimate the mean and standard deviation of the spread, then buys or sells based on predefined thresholds.
-
-## Contributing
-Contributions to this repository are welcome! If you have ideas for additional trading strategies or improvements to existing ones, feel free to submit a pull request.
-
-## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

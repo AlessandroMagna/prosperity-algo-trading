@@ -362,6 +362,7 @@ class Trader:
 
 
     #ROUND 2 STRATEGIES
+    """
     def orchids_strategy(self, state: TradingState, sunlight, humidity):
         self.logger.print("Executing Orchids strategy")
 
@@ -408,6 +409,32 @@ class Trader:
             orders.append(self.reset_positions(state, ORCHIDS))
 
         return orders
+    """
+
+    def orchids_strategy(self, state: TradingState, sunlight, humidity):
+        self.logger.print("Executing Orchids strategy")
+
+        current_timestamp = int(state.timestamp)
+
+        position_orchids = self.get_position(ORCHIDS, state)
+        bid_volume = self.position_limit[ORCHIDS] - position_orchids
+        ask_volume = -self.position_limit[ORCHIDS] - position_orchids
+
+        best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
+
+        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
+
+        orders = []
+
+        if mid_price > 1200:
+            orders.append(Order(ORCHIDS, mid_price, bid_volume))
+
+        elif mid_price < 1100:
+            orders.append(Order(ORCHIDS, mid_price, ask_volume))
+
+        return orders
+
+
     
         
     #ROUND 3      
@@ -578,8 +605,6 @@ class Trader:
         self.update_coco_spread(state)
 
         print(f"TIMESTAMP: {state.timestamp}")
-
-        self.basket_strartegy(state)
         
         result = {}
 
@@ -594,16 +619,16 @@ class Trader:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
+        """
         
         
-        '''
         try:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
-        '''
         
         
+        """
         try:
             result[CHOCOLATE], \
             result[STRAWBERRIES], \

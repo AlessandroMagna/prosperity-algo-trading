@@ -47,7 +47,7 @@ DEFAULT_PRICES = {
 POSITION_LIMITS = {
         AMETHYSTS: 20,
         STARFRUIT: 20,
-        ORCHIDS: 20,
+        ORCHIDS: 50,
         GIFT_BASKET:60,
         ROSES:60,
         CHOCOLATE:250,
@@ -175,7 +175,7 @@ class Trader:
         self.position_limit = {
             AMETHYSTS: 20,
             STARFRUIT: 20,
-            ORCHIDS: 20,
+            ORCHIDS: 50,
             GIFT_BASKET:60,
             ROSES:60,
             CHOCOLATE:250,
@@ -189,9 +189,8 @@ class Trader:
         self.past_prices = {product: [] for product in PRODUCTS}
         self.ema_prices = {product: None for product in PRODUCTS}
         self.ema_param = 0.5
-        self.theta=[ 9.758,  6.402, -5.561, 3.320, 1.501,  1.753]
-        self.sunlight = [] #here we will store the sunlight time series for orchids
-        self.humidity = [] #here we will store the humidity time series for orchids
+        self.sunlight = [] 
+        self.humidity = [] 
         self.spread = []
         self.coco_spread = []
 
@@ -221,8 +220,7 @@ class Trader:
         if len(market_asks) == 0:
             return default_price #if there are no ASK orders, set the mid_price to be the EMA of the previous prices
         
-        #in all the other cased, the mid_price of a product at a given state in time is defined as
-        #the average between the best bid and the best ask
+        #in all the other cased, the mid_price of a product at a given state in time is defined as the average between the best bid and the best ask
         best_bid = max(market_bids)
         best_ask = max(market_asks)
 
@@ -259,7 +257,6 @@ class Trader:
 
         """
         position = self.get_position(product, state)
-        mid_price = int(round(self.get_mid_price(product, state)))
         best_bid, best_ask = self.get_best_bid_ask(product, state)
 
         if position >= 0:
@@ -302,6 +299,13 @@ class Trader:
 
     #ROUND 1 STRATEGIES
     def amethyst_strategy(self, state: TradingState):
+        """
+        Idea:
+            - If both the best bid and best ask prices are above a default price, buy at the default price and sell at the best bid price.
+            - If both the best bid and best ask prices are below a default price, buy at the best ask price and sell at the default price.
+            - Otherwise, make the market with the largest spread between buy and sell orders.
+        """
+
 
         self.logger.print("Executing Amethyst strategy")
         position_amethysts = self.get_position(AMETHYSTS, state) #get the position we currently have in AMETHYSTS
@@ -333,6 +337,13 @@ class Trader:
     
     
     def starfruit_strategy(self, state: TradingState):
+        """
+        Idea:
+            - If not long nor short, place orders to buy slightly below and sell slightly above the exponential moving average (EMA) price.
+            - If in a long position, adjust the buy order slightly lower and the sell order at or slightly above the EMA price.
+            - If in a short position, adjust the buy order at or slightly below the EMA price and the sell order slightly higher.
+        """
+
 
         self.logger.print("Executing Starfruit strategy")
 
@@ -362,8 +373,16 @@ class Trader:
 
 
     #ROUND 2 STRATEGIES
-    """
     def orchids_strategy(self, state: TradingState, sunlight, humidity):
+        """
+        Idea:
+            - During the first part of the trading session (before timestamp 900,000), if both sunlight and humidity are increasing, buy at the mid price.
+            - If both sunlight and humidity are decreasing, sell at the mid price.
+            - Reset the position to zero as soon as the derivatives of sunlight and humidity become discordant.
+            - If there's not enough data points or derivatives are not available, do nothing.
+            - After timestamp 900,000, reset the position to zero.
+        """
+        
         self.logger.print("Executing Orchids strategy")
 
         current_timestamp = int(state.timestamp)
@@ -371,8 +390,6 @@ class Trader:
         position_orchids = self.get_position(ORCHIDS, state)
         bid_volume = self.position_limit[ORCHIDS] - position_orchids
         ask_volume = -self.position_limit[ORCHIDS] - position_orchids
-
-        best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
 
         mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
 
@@ -409,38 +426,16 @@ class Trader:
             orders.append(self.reset_positions(state, ORCHIDS))
 
         return orders
-    """
 
-    def orchids_strategy(self, state: TradingState, sunlight, humidity):
-        self.logger.print("Executing Orchids strategy")
-
-        current_timestamp = int(state.timestamp)
-
-        position_orchids = self.get_position(ORCHIDS, state)
-        bid_volume = self.position_limit[ORCHIDS] - position_orchids
-        ask_volume = -self.position_limit[ORCHIDS] - position_orchids
-
-        best_bid, best_ask = self.get_best_bid_ask(ORCHIDS, state)
-
-        mid_price = int(round(self.get_mid_price(ORCHIDS, state)))
-
-        orders = []
-
-        if mid_price > 1200:
-            orders.append(Order(ORCHIDS, mid_price, bid_volume))
-
-        elif mid_price < 1100:
-            orders.append(Order(ORCHIDS, mid_price, ask_volume))
-
-        return orders
-
-
-    
         
     #ROUND 3      
     def choco_straw_rose_bask_strategy(self, state: TradingState):
-        """ 
-        gift_basket = 4 * chocolate + 6 * strawberries + roses
+        """
+        Idea:
+            - Determine whether to buy or sell the gift basket based on the spread between its price and the combined price of its components (chocolate, strawberries, and roses).
+            - Calculate the spread mean and standard deviation over a rolling window and check if the recent spread deviates significantly from the mean.
+            - If the spread is more than a threshold standard deviations below the mean, buy the basket and sell the components. If it's above, sell the basket and buy the components.
+            - If the position limit for the gift basket is reached, decrease the position by a multiplier.
         """
 
         self.logger.print("Executing choco_straw_rose_bask_ strategy")
@@ -480,9 +475,6 @@ class Trader:
         price_roses = self.get_mid_price(ROSES, state)
         price_basket = self.get_mid_price(GIFT_BASKET, state)
 
-        #calculate the spread at the current state
-        spread = price_basket - (4 * price_chocolate + 6 * price_strawberries + price_roses)
-
         #get the current position we have on the GIFTS_BASKET
         position_basket = self.get_position(GIFT_BASKET, state)
 
@@ -518,26 +510,18 @@ class Trader:
                     create_orders(buy_basket, multiplier=MULTIPLIER)
 
         return orders_chocolate, orders_strawberries, orders_roses, orders_gift_basket
-    
-
-    def basket_strartegy(self, state: TradingState):
-        #print("Buyer", state.market_trades[GIFT_BASKET].buyer)
-        #print("Seller", state.market_trades[GIFT_BASKET].seller)
-
-        market_trades = state.market_trades[GIFT_BASKET]
-        for trade in market_trades:
-            print("Buyer:", trade.buyer)
-            print("Seller:", trade.seller)
-
 
     #ROUND 4
     def coco_strategy(self, state: TradingState):
         """
-        implement a strategy based on the spread between coconut and coconut_coupon.
-        if the spread is greater than 1.5 standard deviations above the mean, sell coconut and buy coconut_coupon.
-        if the spread is smaller than 1.5 standard deviations below the mean, sell coconut_coupon and buy coconut.
-        avoid trading for the first 50 timestamps to get a good estimate of the mean and standard deviation of the spread.
-        """ 
+        Idea:
+            - Calculate the spread between coconut and coconut_coupon.
+            - Wait for the first 50 timestamps to gather enough data for estimating the mean and standard deviation of the spread.
+            - If the spread is greater than 1.5 standard deviations above the mean, sell coconut and buy coconut_coupon.
+            - If the spread is smaller than 1.5 standard deviations below the mean, sell coconut_coupon and buy coconut.
+            - If the spread is within one standard deviation of the mean, reset positions for both coconut and coconut_coupon.
+        """
+
         self.logger.print("Executing Coco strategy")
 
         position_coconut = self.get_position(COCONUT, state)
@@ -550,10 +534,6 @@ class Trader:
 
         mid_price_coconut = int(round(self.get_mid_price(COCONUT, state)))
         mid_price_coupon = int(round(self.get_mid_price(COCONUT_COUPON, state)))
-
-        best_bid, best_ask = self.get_best_bid_ask(COCONUT, state)
-
-        price_ratio = mid_price_coconut / mid_price_coupon
 
         spread_series = pd.Series(self.coco_spread)
 
@@ -588,7 +568,6 @@ class Trader:
 
     def run(self, state: TradingState):
         self.round += 1
-        #self.logger.print(f"Round: {self.round}, Timestamp: {state.timestamp}")
 
         #update past_prices for COCONUT and COCONUT_COUPON
         self.past_prices[COCONUT].append(self.get_mid_price(COCONUT, state))
@@ -608,42 +587,35 @@ class Trader:
         
         result = {}
 
-        """
+        
         try:
             result[AMETHYSTS] = self.amethyst_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in AMETHYSTS strategy: {e}")
         
-        # Implementing STARFRUIT Strategy
         try:
             result[STARFRUIT] = self.starfruit_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in STARFRUIT strategy: {e}")
-        """
-        
         
         try:
             result[ORCHIDS] = self.orchids_strategy(state, self.sunlight, self.humidity)
         except Exception as e:
             self.logger.print(f"Error in ORCHIDS strategy: {e}")
         
-        
-        """
         try:
             result[CHOCOLATE], \
             result[STRAWBERRIES], \
             result[ROSES], \
             result[GIFT_BASKET] = self.choco_straw_rose_bask_strategy(state)
         except Exception as e:
-            self.logger.print(f"Error in choco_straw_rose_bask strategy: {e}")
-        
+            self.logger.print(f"Error in choco_straw_rose_bask strategy: {e}") 
 
         try:
             result[COCONUT], \
             result[COCONUT_COUPON] = self.coco_strategy(state)
         except Exception as e:
             self.logger.print(f"Error in coco strategy: {e}")
-        """
 
         conversions = 0 
         trader_data = "SAMPLE"

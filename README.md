@@ -1,4 +1,4 @@
-# Prosperity 2 
+# IMC Prosperity 2 Algorithmic Trading
 
 ## Introduction
 This repository contains Python code for implementing various algorithmic trading strategies. Each strategy is implemented as a separate function within a class and is designed to execute specific trading actions based on market conditions.

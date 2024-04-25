@@ -44,4 +44,4 @@ To use these trading strategies, follow these steps:
 - **Function:** `coco_strategy(self, state: TradingState)`
 - **Parameters:** `state` - The current trading state containing market data.
 - **Logic:** Waits for enough data points to estimate the mean and standard deviation of the spread, then buys or sells based on predefined thresholds.
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- 
